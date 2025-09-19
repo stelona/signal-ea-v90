@@ -1,0 +1,113 @@
+# MetaTrader 5 compiled files
+*.ex5
+*.ex4
+
+# MetaTrader 5 log files
+*.log
+
+# MetaTrader 5 temporary files
+*.tmp
+*.temp
+
+# MetaTrader 5 backup files
+*.bak
+*.backup
+
+# MetaTrader 5 history files
+*.hst
+*.hcc
+
+# MetaTrader 5 symbol files
+*.sel
+
+# MetaTrader 5 template files (optional - uncomment if you don't want to track templates)
+# *.tpl
+
+# Personal configuration files
+*.ini
+*.cfg
+
+# API keys and sensitive information
+*api_key*
+*secret*
+*password*
+*credentials*
+
+# Local development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node.js (if using any JS tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if using any Python tools)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Build directories
+build/
+dist/
+out/
+
+# Dependency directories
+vendor/
+
+# Local environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Personal notes and TODO files
+TODO.txt
+NOTES.txt
+personal_notes.md
+
+# Test results
+test-results/
+coverage-reports/
+
+# Temporary patch files
+*.patch
+*.diff
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+*.7z

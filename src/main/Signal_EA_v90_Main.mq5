@@ -235,6 +235,8 @@ void AddTrackedPosition(ulong ticket, string signal_id) {
 //| API COMMUNICATION FUNCTIONS                                     |
 //+------------------------------------------------------------------+
 string SendHttpRequest(string url, string method = "GET", string data = "", int timeout = 5000) {
+    LogDebug("HTTP Request: " + method + " " + url);
+    
     char post_data[];
     char result[];
     string headers = "";
@@ -242,29 +244,44 @@ string SendHttpRequest(string url, string method = "GET", string data = "", int 
     if(data != "") {
         headers = "Content-Type: application/json; charset=utf-8\r\n";
         StringToCharArray(data, post_data, 0, StringLen(data), CP_UTF8);
+        LogDebug("Request Data: " + StringSubstr(data, 0, MathMin(200, StringLen(data))) + (StringLen(data) > 200 ? "..." : ""));
     }
     
     ResetLastError();
     
     int res = WebRequest(method, url, headers, timeout, post_data, result, headers);
+    LogDebug("HTTP Response Code: " + IntegerToString(res));
     
     if(res == -1) {
         int error_code = GetLastError();
-        LogError("WebRequest failed: " + IntegerToString(error_code));
-        if(error_code == 4060) {
-            LogError("URL not allowed. Add to Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL");
+        switch(error_code) {
+            case 4060:
+                LogError("Error 4060: URL not allowed in WebRequest list");
+                LogError("Solution: Add URL to Tools → Options → Expert Advisors → 'Allow WebRequest for listed URL'");
+                break;
+            case 4014:
+                LogError("Error 4014: Unknown symbol");
+                break;
+            default:
+                LogError("HTTP Error: " + IntegerToString(error_code));
+                break;
         }
         return "";
     }
     
-    if(res == 204) return ""; // No content
-    
-    if(res != 200) {
-        LogDebug("HTTP Error: " + IntegerToString(res));
-        return "";
+    if(res == 200) {
+        string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+        LogDebug("Response: " + StringSubstr(response, 0, MathMin(200, StringLen(response))) + (StringLen(response) > 200 ? "..." : ""));
+        return response;
     }
     
-    return CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+    if(res == 204) {
+        LogDebug("No content response (204)");
+        return ""; // No content
+    }
+    
+    LogError("HTTP Error: " + IntegerToString(res));
+    return "";
 }
 
 string GetSignalFromAPI() {
@@ -283,7 +300,16 @@ void SendTradeExecutionConfirmation(string signal_id, string symbol, string orde
     json += "\"symbol\":\"" + symbol + "\",";
     json += "\"order_type\":\"" + order_type + "\",";
     json += "\"lots\":" + DoubleToString(lots, 6) + ",";
-    json += "\"ticket\":" + IntegerToString(ticket);
+    json += "\"ticket\":" + IntegerToString(ticket) + ",";
+    
+    // Add position details if available
+    if(PositionSelectByTicket(ticket)) {
+        json += "\"entry_price\":" + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), 5) + ",";
+        json += "\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), 5) + ",";
+        json += "\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), 5) + ",";
+    }
+    
+    json += "\"execution_time\":\"" + TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS) + "\"";
     json += "}";
     json += AddAccountInfo();
     json += "}";
@@ -303,7 +329,9 @@ void SendTradeErrorConfirmation(string signal_id, string symbol, string directio
     json += "\"symbol\":\"" + symbol + "\",";
     json += "\"direction\":\"" + direction + "\",";
     json += "\"lots\":" + DoubleToString(lots, 6) + ",";
-    json += "\"ticket\":" + IntegerToString(ticket);
+    json += "\"ticket\":" + IntegerToString(ticket) + ",";
+    json += "\"error_code\":" + IntegerToString(GetLastError()) + ",";
+    json += "\"error_message\":\"" + error_message + "\"";
     json += "}";
     json += AddAccountInfo();
     json += "}";
@@ -331,8 +359,7 @@ string AddAccountInfo() {
     info += "\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",";
     info += "\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",";
     info += "\"currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\",";
-    info += "\"leverage\":" + IntegerToString(AccountInfoInteger(ACCOUNT_LEVERAGE)) + ",";
-    info += "\"free_margin\":" + DoubleToString(AccountInfoDouble(ACCOUNT_FREEMARGIN), 2);
+    info += "\"leverage\":" + IntegerToString(AccountInfoInteger(ACCOUNT_LEVERAGE));
     info += "}";
     return info;
 }

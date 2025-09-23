@@ -235,41 +235,133 @@ void AddTrackedPosition(ulong ticket, string signal_id) {
 //| API COMMUNICATION FUNCTIONS                                     |
 //+------------------------------------------------------------------+
 string SendHttpRequest(string url, string method = "GET", string data = "", int timeout = 5000) {
+    LogDebug("HTTP Request: " + method + " " + url);
+    
     char post_data[];
     char result[];
     string headers = "";
     
     if(data != "") {
-        headers = "Content-Type: application/json\r\n";
-        StringToCharArray(data, post_data, 0, StringLen(data));
+        headers = "Content-Type: application/json; charset=utf-8\r\n";
+        StringToCharArray(data, post_data, 0, StringLen(data), CP_UTF8);
+        LogDebug("Request Data: " + StringSubstr(data, 0, MathMin(200, StringLen(data))) + (StringLen(data) > 200 ? "..." : ""));
     }
     
     ResetLastError();
     
     int res = WebRequest(method, url, headers, timeout, post_data, result, headers);
+    LogDebug("HTTP Response Code: " + IntegerToString(res));
     
     if(res == -1) {
         int error_code = GetLastError();
-        LogError("WebRequest failed: " + IntegerToString(error_code));
-        if(error_code == 4060) {
-            LogError("URL not allowed. Add to Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL");
+        switch(error_code) {
+            case 4060:
+                LogError("Error 4060: URL not allowed in WebRequest list");
+                LogError("Solution: Add URL to Tools → Options → Expert Advisors → 'Allow WebRequest for listed URL'");
+                break;
+            case 4014:
+                LogError("Error 4014: Unknown symbol");
+                break;
+            default:
+                LogError("HTTP Error: " + IntegerToString(error_code));
+                break;
         }
         return "";
     }
     
-    if(res == 204) return ""; // No content
-    
-    if(res != 200) {
-        LogDebug("HTTP Error: " + IntegerToString(res));
-        return "";
+    if(res == 200) {
+        string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+        LogDebug("Response: " + StringSubstr(response, 0, MathMin(200, StringLen(response))) + (StringLen(response) > 200 ? "..." : ""));
+        return response;
     }
     
-    return CharArrayToString(result);
+    if(res == 204) {
+        LogDebug("No content response (204)");
+        return ""; // No content
+    }
+    
+    LogError("HTTP Error: " + IntegerToString(res));
+    return "";
 }
 
 string GetSignalFromAPI() {
     string url = signal_api_url + "?account_id=" + account_id;
     return SendHttpRequest(url, "GET", "", api_timeout_ms);
+}
+
+//+------------------------------------------------------------------+
+//| DELIVERY API FUNCTIONS                                           |
+//+------------------------------------------------------------------+
+void SendTradeExecutionConfirmation(string signal_id, string symbol, string order_type, 
+                                   double lots, ulong ticket, string message) {
+    
+    string json = CreateBaseJSON(signal_id, true, message);
+    json += ",\"trade_details\":{";
+    json += "\"symbol\":\"" + symbol + "\",";
+    json += "\"order_type\":\"" + order_type + "\",";
+    json += "\"lots\":" + DoubleToString(lots, 6) + ",";
+    json += "\"ticket\":" + IntegerToString(ticket) + ",";
+    
+    // Add position details if available
+    if(PositionSelectByTicket(ticket)) {
+        json += "\"entry_price\":" + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), 5) + ",";
+        json += "\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), 5) + ",";
+        json += "\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), 5) + ",";
+    }
+    
+    json += "\"execution_time\":\"" + TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS) + "\"";
+    json += "}";
+    json += AddAccountInfo();
+    json += "}";
+    
+    string response = SendHttpRequest(delivery_api_url, "POST", json, api_timeout_ms);
+    LogDebug("📤 Trade confirmation sent for signal: " + signal_id);
+    if(response != "") {
+        LogDebug("📥 Delivery API response: " + response);
+    }
+}
+
+void SendTradeErrorConfirmation(string signal_id, string symbol, string direction, 
+                               double lots, ulong ticket, string error_message) {
+    
+    string json = CreateBaseJSON(signal_id, false, error_message);
+    json += ",\"trade_details\":{";
+    json += "\"symbol\":\"" + symbol + "\",";
+    json += "\"direction\":\"" + direction + "\",";
+    json += "\"lots\":" + DoubleToString(lots, 6) + ",";
+    json += "\"ticket\":" + IntegerToString(ticket) + ",";
+    json += "\"error_code\":" + IntegerToString(GetLastError()) + ",";
+    json += "\"error_message\":\"" + error_message + "\"";
+    json += "}";
+    json += AddAccountInfo();
+    json += "}";
+    
+    string response = SendHttpRequest(delivery_api_url, "POST", json, api_timeout_ms);
+    LogDebug("📤 Error confirmation sent for signal: " + signal_id);
+    if(response != "") {
+        LogDebug("📥 Delivery API response: " + response);
+    }
+}
+
+string CreateBaseJSON(string signal_id, bool success, string message) {
+    string json = "{";
+    json += "\"account_id\":\"" + account_id + "\",";
+    json += "\"signal_id\":\"" + signal_id + "\",";
+    json += "\"success\":" + (success ? "true" : "false") + ",";
+    json += "\"message\":\"" + message + "\",";
+    json += "\"ea_version\":\"9.0\",";
+    json += "\"timestamp\":\"" + TimeToString(TimeCurrent(), TIME_DATE | TIME_SECONDS) + "\"";
+    return json;
+}
+
+string AddAccountInfo() {
+    string info = ",\"account_info\":{";
+    info += "\"balance\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ",";
+    info += "\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ",";
+    info += "\"currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\",";
+    info += "\"leverage\":" + IntegerToString(AccountInfoInteger(ACCOUNT_LEVERAGE));
+    info += "}";
+    return info;
 }
 
 //+------------------------------------------------------------------+
@@ -333,6 +425,7 @@ bool ProcessSignal(string signal_json) {
     // Basic validation
     if(signal_id == "" || symbol == "" || direction == "" || sl <= 0 || risk <= 0) {
         LogError("Invalid signal: Missing required fields");
+        SendTradeErrorConfirmation(signal_id != "" ? signal_id : "UNKNOWN", symbol != "" ? symbol : "UNKNOWN", direction != "" ? direction : "UNKNOWN", 0, 0, "Invalid signal: Missing required fields");
         MarkSignalAsProcessed(signal_id, false);
         return false;
     }
@@ -340,6 +433,7 @@ bool ProcessSignal(string signal_json) {
     // Risk validation
     if(risk > max_risk_percent) {
         LogError("Risk too high: " + DoubleToString(risk, 2) + "% > " + DoubleToString(max_risk_percent, 2) + "%");
+        SendTradeErrorConfirmation(signal_id, symbol, direction, 0, 0, "Risk too high: " + DoubleToString(risk, 2) + "% > " + DoubleToString(max_risk_percent, 2) + "%");
         MarkSignalAsProcessed(signal_id, false);
         return false;
     }
@@ -348,6 +442,7 @@ bool ProcessSignal(string signal_json) {
     string mapped_symbol = symbol;
     if(!SymbolSelect(mapped_symbol, true)) {
         LogError("Symbol not available: " + symbol);
+        SendTradeErrorConfirmation(signal_id, symbol, direction, 0, 0, "Symbol not available: " + symbol);
         MarkSignalAsProcessed(signal_id, false);
         return false;
     }
@@ -386,6 +481,7 @@ bool ProcessSignal(string signal_json) {
     
     if(lots <= 0) {
         LogError("v9.0 Lotsize calculation failed: " + calc_message);
+        SendTradeErrorConfirmation(signal_id, mapped_symbol, direction, 0, 0, "Lotsize calculation failed: " + calc_message);
         MarkSignalAsProcessed(signal_id, false);
         return false;
     }
@@ -430,6 +526,9 @@ bool ProcessSignal(string signal_json) {
         // Add to position tracking
         AddTrackedPosition(ticket, signal_id);
         
+        // Send success confirmation to Delivery API
+        SendTradeExecutionConfirmation(signal_id, mapped_symbol, EnumToString(mt_order_type), lots, ticket, "Trade executed successfully");
+        
         // Mark as successfully processed
         MarkSignalAsProcessed(signal_id, true);
         
@@ -437,6 +536,10 @@ bool ProcessSignal(string signal_json) {
     } else {
         LogError("❌ TRADE EXECUTION FAILED!");
         LogError("   Error: " + IntegerToString(trade.ResultRetcode()) + " - " + trade.ResultRetcodeDescription());
+        
+        // Send error confirmation to Delivery API
+        SendTradeErrorConfirmation(signal_id, mapped_symbol, direction, lots, 0, "Trade execution failed: " + IntegerToString(trade.ResultRetcode()) + " - " + trade.ResultRetcodeDescription());
+        
         MarkSignalAsProcessed(signal_id, false);
         
         return false;

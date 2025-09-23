@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [9.3.0] - 2025-01-XX
+
+### 🚀 **MULTIPLE SIGNALS PROCESSING**
+
+### ✅ **Added**
+
+#### **Multiple Signals Support:**
+- **`IsJSONArray()`** - Automatic detection of JSON arrays vs single objects
+- **`ProcessMultipleSignals()`** - Process arrays of signals in one API response
+- **`ConvertSignalToOldFormat()`** - Field mapping from new to existing format
+- **`IsSignalAlreadyProcessed()`** - Duplicate signal detection and prevention
+- **Enhanced `CheckForNewSignals()`** - Automatic routing to appropriate processing function
+
+#### **New JSON Field Mappings:**
+- **`id` → `signal_id`** - Signal identifier mapping
+- **`entry_price` → `entry`** - Entry price field mapping
+- **`entry_type` → `order_type`** - Order type field mapping
+- **`tp1` → `tp`** - Take profit field mapping
+- **Support for new fields:** `total_signals`, `entry_min`, `entry_max`, `low_risk`
+
+#### **Backward Compatibility:**
+- **Full compatibility** with existing single signal processing
+- **No changes required** to existing ProcessSignal() function
+- **Automatic detection** - EA handles both formats seamlessly
+- **Existing field names** continue to work unchanged
+
+#### **Enhanced Error Handling:**
+- **Array boundary validation** - Proper JSON array format checking
+- **Signal extraction validation** - Robust parsing of individual signals
+- **Duplicate prevention** - Avoid processing same signal multiple times
+- **Comprehensive logging** - Detailed processing information for debugging
+
+### 🔧 **Changed**
+
+#### **API Response Handling:**
+- **Enhanced CheckForNewSignals()** - Now supports both single signals and arrays
+- **Automatic format detection** - No configuration needed for different response types
+- **Individual signal processing** - Each signal in array processed independently
+
+### 📝 **Documentation**
+
+#### **Updated API Documentation:**
+- **New JSON array format** examples in API_Documentation_v92.md
+- **Field mapping documentation** for new vs old format
+- **Processing flow diagrams** showing array handling
+- **Integration examples** for multiple signals
+
+---
+
 ## [9.0.0] - 2024-12-19
 
 ### 🚀 **MAJOR RELEASE - Revolutionary JPY-Pair Optimization**

@@ -50,7 +50,88 @@ Content-Type: application/json; charset=utf-8
 }
 ```
 
+### **🆕 Erwartete API Response (Mehrere Signale - NEU in v9.3):**
+```json
+[
+  {
+    "total_signals": 9,
+    "id": "sig_2025-09-23T10:04:16",
+    "symbol": "USDJPY",
+    "direction": "sell",
+    "entry_type": "limit",
+    "entry_price": "148.25000",
+    "entry_min": null,
+    "entry_max": null,
+    "sl": "148.40000",
+    "tp1": "146.70000",
+    "low_risk": "0",
+    "risk": 1
+  },
+  {
+    "total_signals": 9,
+    "id": "sig_2025-09-23T10:04:15",
+    "symbol": "USDJPY",
+    "direction": "sell",
+    "entry_type": "limit",
+    "entry_price": "148.21000",
+    "entry_min": null,
+    "entry_max": null,
+    "sl": "148.40000",
+    "tp1": "146.70000",
+    "low_risk": "0",
+    "risk": 1
+  }
+]
+```
+
+**Hinweis zu mehreren Signalen:**
+- Der EA erkennt automatisch ob die Response ein einzelnes Signal (JSON-Objekt) oder mehrere Signale (JSON-Array) enthält
+- Bei Arrays wird jedes Signal individual verarbeitet
+- Duplikate werden anhand der Signal-ID erkannt und übersprungen
+- Feld-Mapping: `id` → `signal_id`, `entry_price` → `entry`, `entry_type` → `order_type`, `tp1` → `tp`
+
 ### **EA Verarbeitung:**
+
+**Automatische Erkennung von Single vs. Multiple Signals:**
+```mql5
+void CheckForNewSignals() {
+    string response = SendHttpRequest(signal_api_url + "?account_id=" + account_id);
+    
+    // Automatische Erkennung der Response-Art
+    if(IsJSONArray(response)) {
+        ProcessMultipleSignals(response);  // 🆕 NEU: Array-Verarbeitung
+    } else {
+        ProcessSignal(response);           // Bestehend: Single Signal
+    }
+}
+```
+
+**Neue Funktion für mehrere Signale (v9.3+):**
+```mql5
+void ProcessMultipleSignals(string json_array) {
+    // Array-Grenzen finden
+    int array_start = StringFind(json_array, "[");
+    int array_end = StringFind(json_array, "]", array_start);
+    
+    // Jedes Signal im Array verarbeiten
+    for(int i = 0; i < StringLen(array_content); i++) {
+        // JSON-Parsing um einzelne Signale zu extrahieren
+        string single_signal = ExtractSingleSignalFromArray(...);
+        
+        // Duplikat-Prüfung
+        string signal_id = ExtractStringFromJSON(single_signal, "id");
+        if(!IsSignalAlreadyProcessed(signal_id)) {
+            // Format-Konvertierung: neue → alte Feldnamen
+            string old_format = ConvertSignalToOldFormat(single_signal);
+            
+            // Bestehende ProcessSignal-Funktion nutzen
+            ProcessSignal(old_format);
+        }
+    }
+}
+```
+
+**Bestehende Single Signal Verarbeitung (unverändert):**
 ```mql5
 void ProcessSignal(string signal_data) {
     // Extrahiert Werte aus JSON:

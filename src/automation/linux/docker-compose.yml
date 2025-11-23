@@ -1,0 +1,171 @@
+version: '3.8'
+
+#═══════════════════════════════════════════════════════════════════════════
+# MT5 SaaS Platform - Docker Compose
+#═══════════════════════════════════════════════════════════════════════════
+#
+# Multi-Tenant Setup - mehrere MT5-Instanzen für verschiedene Kunden
+#
+# Usage:
+#   # Alle Container starten
+#   docker-compose up -d
+#
+#   # Einzelnen Kunden starten
+#   docker-compose up -d customer1
+#
+#   # Logs anzeigen
+#   docker-compose logs -f customer1
+#
+#   # Status prüfen
+#   docker-compose ps
+#
+#   # Stoppen
+#   docker-compose down
+#
+# Version: 1.0
+# Author: Stelona
+#═══════════════════════════════════════════════════════════════════════════
+
+services:
+  # ============================================
+  # KUNDE 1
+  # ============================================
+  customer1:
+    build: .
+    container_name: mt5-customer1
+    hostname: mt5-customer1
+
+    # Umgebungsvariablen (Alternative zu config.json)
+    environment:
+      - ACCOUNT=11111111
+      - PASSWORD=Customer1Password
+      - SERVER=ICMarkets-Demo
+      - HEADLESS=true
+
+    # Oder Config-Datei mounten:
+    # volumes:
+    #   - ./configs/customer1_config.json:/opt/mt5/config.json:ro
+    #   - customer1_logs:/var/log/mt5
+
+    # Restart Policy
+    restart: unless-stopped
+
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Health Check
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "terminal64.exe"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # KUNDE 2
+  # ============================================
+  customer2:
+    build: .
+    container_name: mt5-customer2
+    hostname: mt5-customer2
+
+    environment:
+      - ACCOUNT=22222222
+      - PASSWORD=Customer2Password
+      - SERVER=Pepperstone-Demo
+      - HEADLESS=true
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "terminal64.exe"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # KUNDE 3
+  # ============================================
+  customer3:
+    build: .
+    container_name: mt5-customer3
+    hostname: mt5-customer3
+
+    environment:
+      - ACCOUNT=33333333
+      - PASSWORD=Customer3Password
+      - SERVER=XM.COM-Demo
+      - HEADLESS=true
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "terminal64.exe"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ============================================
+# VOLUMES (optional)
+# ============================================
+volumes:
+  customer1_logs:
+    driver: local
+  customer2_logs:
+    driver: local
+  customer3_logs:
+    driver: local
+
+# ============================================
+# NETWORKS (optional)
+# ============================================
+networks:
+  default:
+    name: mt5-network
+    driver: bridge

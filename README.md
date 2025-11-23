@@ -40,6 +40,13 @@
 - **Backward compatibility** with v8.x systems
 - **Future-proof design** for additional features
 
+### **🔐 Auto-Login System** (NEW!)
+- **Automatic account login** from configuration file
+- **Broker/Server detection** with intelligent search
+- **Multi-account support** for Demo, Live, and Prop accounts
+- **Secure credential management** with local file storage
+- **Batch script generation** for Windows automation
+
 ---
 
 ## 📁 **Repository Structure**
@@ -54,17 +61,21 @@ signal-ea-v90/
 │   │   ├── Core_DataStructures.mqh          # Data structures and enums
 │   │   ├── Core_Logging.mqh                 # Logging functions
 │   │   └── Core_Utilities.mqh               # Utility functions
+│   ├── scripts/
+│   │   └── MT5_Auto_Login.mq5               # Auto-login script (NEW!)
 │   └── legacy/
 │       └── Signal_EA_v8x_Original.mq5       # Original v8.x code (reference)
 ├── docs/
 │   ├── INTEGRATION_GUIDE.md                 # Step-by-step integration guide
 │   ├── API_DOCUMENTATION.md                 # API integration documentation
+│   ├── AUTO_LOGIN_GUIDE.md                  # Auto-login system guide (NEW!)
 │   ├── TROUBLESHOOTING.md                   # Common issues and solutions
 │   └── CHANGELOG.md                          # Version history and changes
 ├── examples/
 │   ├── minimal_integration/                 # Minimal modular integration example
 │   ├── full_modular/                        # Complete modular structure example
-│   └── patch_files/                         # Patch files for existing installations
+│   ├── patch_files/                         # Patch files for existing installations
+│   └── mt5_login_config.txt                 # Login configuration example (NEW!)
 ├── tests/
 │   ├── lotsize_tests.mq5                    # Lotsize calculation tests
 │   └── symbol_detection_tests.mq5           # Symbol detection tests
@@ -115,6 +126,31 @@ For new installations or complete modernization.
    ```
 
 3. **Configure your API endpoints** in the input parameters
+
+### **Option C: Auto-Login Setup** (NEW!)
+For automatic account login from configuration file.
+
+1. **Copy files to MT5:**
+   ```bash
+   # Copy script to MT5 Scripts folder
+   cp src/scripts/MT5_Auto_Login.mq5 [MT5_DATA]/MQL5/Scripts/
+
+   # Copy config template to Files folder
+   cp examples/mt5_login_config.txt [MT5_DATA]/MQL5/Files/
+   ```
+
+2. **Edit configuration file:**
+   ```ini
+   ACCOUNT=12345678
+   PASSWORD=YourPassword
+   SERVER=YourBroker-Demo
+   ```
+
+3. **Run the script in MT5:**
+   - Navigator → Scripts → MT5_Auto_Login
+   - Drag onto any chart
+
+4. **See full guide:** [AUTO_LOGIN_GUIDE.md](docs/AUTO_LOGIN_GUIDE.md)
 
 ---
 
@@ -226,6 +262,7 @@ mql5 tests/symbol_detection_tests.mq5
 
 - **[Integration Guide](docs/INTEGRATION_GUIDE.md)** - Step-by-step installation
 - **[API Documentation](docs/API_DOCUMENTATION.md)** - Complete API reference
+- **[Auto-Login Guide](docs/AUTO_LOGIN_GUIDE.md)** - Automatic account login setup (NEW!)
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[Changelog](docs/CHANGELOG.md)** - Version history and updates
 

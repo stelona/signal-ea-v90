@@ -1,0 +1,70 @@
+#============================================
+# MT5 Auto-Login Konfigurationsdatei
+#============================================
+#
+# ANLEITUNG:
+# 1. Kopieren Sie diese Datei in den MQL5/Files Ordner
+#    Pfad: C:\Users\[IhrName]\AppData\Roaming\MetaQuotes\Terminal\[TerminalID]\MQL5\Files\
+#
+# 2. Füllen Sie die unten stehenden Felder mit Ihren Login-Daten aus
+#
+# 3. Führen Sie das Script "MT5_Auto_Login.mq5" in MetaTrader 5 aus
+#
+# SICHERHEITSHINWEIS:
+# - Diese Datei enthält Ihr Passwort im Klartext
+# - Bewahren Sie diese Datei sicher auf
+# - Teilen Sie diese Datei NIEMALS mit anderen
+# - Verwenden Sie nur auf Ihrem privaten Computer
+#
+#============================================
+
+# Account-Nummer (Login)
+ACCOUNT=12345678
+
+# Passwort
+PASSWORD=IhrPasswortHier
+
+# Server-Name (z.B. "ICMarkets-Demo", "Pepperstone-Live", etc.)
+SERVER=ICMarkets-Demo
+
+#============================================
+# BEISPIELE FÜR VERSCHIEDENE BROKER:
+#============================================
+#
+# IC Markets:
+#   SERVER=ICMarkets-Demo
+#   SERVER=ICMarkets-Live
+#
+# Pepperstone:
+#   SERVER=Pepperstone-Demo
+#   SERVER=Pepperstone-Live
+#
+# XM:
+#   SERVER=XM.COM-Demo
+#   SERVER=XM.COM-Real
+#
+# Admiral Markets:
+#   SERVER=AdmiralMarkets-Demo
+#   SERVER=AdmiralMarkets-Live
+#
+# FxPro:
+#   SERVER=FxPro.com-Demo
+#   SERVER=FxPro.com-Live
+#
+# Roboforex:
+#   SERVER=RoboForex-Demo
+#   SERVER=RoboForex-Pro
+#
+#============================================
+# HINWEISE:
+#============================================
+#
+# - Kommentare beginnen mit # oder //
+# - Leere Zeilen werden ignoriert
+# - Format: KEY=VALUE (keine Leerzeichen um das = Zeichen)
+# - Alternativ können Sie auch folgende Bezeichnungen verwenden:
+#     LOGIN statt ACCOUNT
+#     PASS statt PASSWORD
+#     BROKER statt SERVER
+#
+#============================================

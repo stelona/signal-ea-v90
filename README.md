@@ -47,6 +47,13 @@
 - **Secure credential management** with local file storage
 - **Batch script generation** for Windows automation
 
+### **🚀 SaaS Platform Automation** (NEW!)
+- **ZERO manual interaction** - Fully automated MT5 startup
+- **Windows Service integration** - Auto-start on system boot
+- **Process monitoring** - Automatic restart on crash
+- **Multi-tenant support** - Multiple MT5 instances per server
+- **Perfect for SaaS platforms** renting MT5 instances
+
 ---
 
 ## 📁 **Repository Structure**
@@ -62,20 +69,27 @@ signal-ea-v90/
 │   │   ├── Core_Logging.mqh                 # Logging functions
 │   │   └── Core_Utilities.mqh               # Utility functions
 │   ├── scripts/
-│   │   └── MT5_Auto_Login.mq5               # Auto-login script (NEW!)
+│   │   └── MT5_Auto_Login.mq5               # Auto-login script
+│   ├── automation/                          # SaaS automation (NEW!)
+│   │   ├── MT5_AutoStart.ps1                # Fully automated MT5 startup
+│   │   ├── Install-MT5Service.ps1           # Windows Service installer
+│   │   ├── MT5_ConfigManager.ps1            # Configuration manager
+│   │   └── README.md                        # Quick start guide
 │   └── legacy/
 │       └── Signal_EA_v8x_Original.mq5       # Original v8.x code (reference)
 ├── docs/
 │   ├── INTEGRATION_GUIDE.md                 # Step-by-step integration guide
 │   ├── API_DOCUMENTATION.md                 # API integration documentation
-│   ├── AUTO_LOGIN_GUIDE.md                  # Auto-login system guide (NEW!)
+│   ├── AUTO_LOGIN_GUIDE.md                  # Auto-login system guide
+│   ├── SAAS_DEPLOYMENT_GUIDE.md             # SaaS platform deployment (NEW!)
 │   ├── TROUBLESHOOTING.md                   # Common issues and solutions
 │   └── CHANGELOG.md                          # Version history and changes
 ├── examples/
 │   ├── minimal_integration/                 # Minimal modular integration example
 │   ├── full_modular/                        # Complete modular structure example
 │   ├── patch_files/                         # Patch files for existing installations
-│   └── mt5_login_config.txt                 # Login configuration example (NEW!)
+│   ├── mt5_login_config.txt                 # Login configuration example
+│   └── mt5_saas_config.json                 # SaaS automation config (NEW!)
 ├── tests/
 │   ├── lotsize_tests.mq5                    # Lotsize calculation tests
 │   └── symbol_detection_tests.mq5           # Symbol detection tests
@@ -151,6 +165,35 @@ For automatic account login from configuration file.
    - Drag onto any chart
 
 4. **See full guide:** [AUTO_LOGIN_GUIDE.md](docs/AUTO_LOGIN_GUIDE.md)
+
+### **Option D: SaaS Platform Automation** (NEW! - ZERO manual interaction)
+For SaaS platforms renting MT5 instances - fully automated, no customer clicks required.
+
+1. **Copy automation scripts:**
+   ```powershell
+   Copy-Item src/automation/* -Destination "C:\MT5\automation\" -Recurse
+   Copy-Item examples/mt5_saas_config.json -Destination "C:\MT5\config.json"
+   ```
+
+2. **Configure customer credentials:**
+   ```json
+   {
+     "account": 12345678,
+     "password": "CustomerPassword",
+     "server": "ICMarkets-Demo",
+     "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+   }
+   ```
+
+3. **Install as Windows Service:**
+   ```powershell
+   cd C:\MT5\automation
+   .\Install-MT5Service.ps1 -ConfigFile "C:\MT5\config.json"
+   ```
+
+4. **Done!** MT5 starts automatically on system boot - no customer interaction needed.
+
+5. **See full guide:** [SAAS_DEPLOYMENT_GUIDE.md](docs/SAAS_DEPLOYMENT_GUIDE.md)
 
 ---
 
@@ -262,7 +305,8 @@ mql5 tests/symbol_detection_tests.mq5
 
 - **[Integration Guide](docs/INTEGRATION_GUIDE.md)** - Step-by-step installation
 - **[API Documentation](docs/API_DOCUMENTATION.md)** - Complete API reference
-- **[Auto-Login Guide](docs/AUTO_LOGIN_GUIDE.md)** - Automatic account login setup (NEW!)
+- **[Auto-Login Guide](docs/AUTO_LOGIN_GUIDE.md)** - Automatic account login setup
+- **[SaaS Deployment Guide](docs/SAAS_DEPLOYMENT_GUIDE.md)** - Fully automated SaaS platform setup (NEW!)
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[Changelog](docs/CHANGELOG.md)** - Version history and updates
 

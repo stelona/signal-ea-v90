@@ -1,0 +1,104 @@
+{
+  "_comment": "MT5 SaaS Auto-Login Konfiguration - Linux/Wine Edition",
+  "_version": "1.0",
+  "_platform": "linux",
+
+  "account": 12345678,
+  "password": "IhrKundenPasswort",
+  "server": "ICMarkets-Demo",
+
+  "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+  "_mt5_path_comment": "Windows-Pfad innerhalb von Wine - wird automatisch konvertiert",
+
+  "wine_prefix": "/home/mt5user/.wine",
+  "_wine_prefix_comment": "Wine Prefix - Standard: $HOME/.wine",
+
+  "stop_existing": true,
+  "_stop_existing_comment": "true = Beendet vorhandene MT5-Instanz vor Neustart",
+
+  "auto_restart": true,
+  "_auto_restart_comment": "true = Startet MT5 bei Absturz automatisch neu",
+
+  "restart_delay_seconds": 10,
+  "_restart_delay_comment": "Wartezeit in Sekunden vor Neustart nach Absturz",
+
+  "monitoring": {
+    "enabled": true,
+    "check_interval_seconds": 30,
+    "log_status": true,
+    "_comment": "Prozessüberwachung - prüft ob MT5 noch läuft"
+  },
+
+  "logging": {
+    "enabled": true,
+    "log_file": "/var/log/mt5/mt5_autostart.log",
+    "log_level": "INFO",
+    "_log_level_options": "DEBUG, INFO, WARNING, ERROR"
+  },
+
+  "display": {
+    "headless": true,
+    "xvfb_display": ":99",
+    "_comment": "Für headless Server - Xvfb Virtual Display"
+  },
+
+  "customer": {
+    "id": "customer_001",
+    "name": "Beispiel Kunde GmbH",
+    "created_at": "2024-01-01T00:00:00Z",
+    "_comment": "Optionale Kunden-Metadaten für Multi-Tenant"
+  },
+
+  "_examples": {
+    "_comment": "Beispiele für verschiedene Broker-Server",
+    "ic_markets": {
+      "demo": "ICMarkets-Demo",
+      "live": "ICMarkets-Live"
+    },
+    "pepperstone": {
+      "demo": "Pepperstone-Demo",
+      "live": "Pepperstone-Live"
+    },
+    "xm": {
+      "demo": "XM.COM-Demo",
+      "real": "XM.COM-Real"
+    },
+    "ftmo": {
+      "demo": "FTMO-Demo",
+      "server": "FTMO-Server"
+    }
+  },
+
+  "_installation_notes": {
+    "step_1": "Kunde gibt Account, Password, Server ein",
+    "step_2": "System erstellt diese config.json Datei automatisch",
+    "step_3": "Script lädt Config und startet MT5 in Wine",
+    "step_4": "Systemd Service startet MT5 automatisch bei Boot",
+    "step_5": "ZERO manuelle Interaktion vom Kunden erforderlich"
+  },
+
+  "_linux_requirements": {
+    "os": "Ubuntu 20.04+ / Debian 11+ / CentOS 8+",
+    "wine": "wine 6.0+ (wine-stable empfohlen)",
+    "packages": [
+      "wine",
+      "wine64",
+      "xvfb",
+      "jq"
+    ],
+    "install_command": "sudo apt-get install wine wine64 xvfb jq -y"
+  },
+
+  "_multi_tenant_example": {
+    "customer1": {
+      "config_file": "/opt/mt5/customer1/config.json",
+      "wine_prefix": "/opt/mt5/customer1/.wine",
+      "systemd_service": "mt5-customer1.service"
+    },
+    "customer2": {
+      "config_file": "/opt/mt5/customer2/config.json",
+      "wine_prefix": "/opt/mt5/customer2/.wine",
+      "systemd_service": "mt5-customer2.service"
+    }
+  }
+}

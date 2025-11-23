@@ -1,0 +1,65 @@
+{
+  "_comment": "MT5 SaaS Auto-Login Konfiguration - KEINE manuelle Interaktion erforderlich",
+  "_version": "1.0",
+
+  "account": 12345678,
+  "password": "IhrPasswortHier",
+  "server": "ICMarkets-Demo",
+
+  "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+  "mt5_data_path": "C:\\Users\\USERNAME\\AppData\\Roaming\\MetaQuotes\\Terminal\\TERMINAL_ID",
+
+  "stop_existing": true,
+  "_stop_existing_comment": "true = Beendet vorhandene MT5-Instanz vor Neustart | false = Verwendet bestehende Instanz",
+
+  "auto_restart": true,
+  "_auto_restart_comment": "true = Startet MT5 bei Absturz automatisch neu | false = Einmaliger Start",
+
+  "restart_delay_seconds": 10,
+  "_restart_delay_comment": "Wartezeit in Sekunden vor Neustart nach Absturz",
+
+  "monitoring": {
+    "enabled": true,
+    "check_interval_seconds": 30,
+    "log_status": true,
+    "_comment": "Prozessüberwachung - prüft ob MT5 noch läuft und startet ggf. neu"
+  },
+
+  "logging": {
+    "enabled": true,
+    "log_file": "C:\\MT5\\logs\\mt5_autostart.log",
+    "log_level": "INFO",
+    "_log_level_options": "DEBUG, INFO, WARNING, ERROR"
+  },
+
+  "advanced": {
+    "startup_timeout_seconds": 30,
+    "max_restart_attempts": -1,
+    "_max_restart_attempts_comment": "-1 = Unbegrenzt | positive Zahl = Max. Neustarts",
+
+    "health_check": {
+      "enabled": true,
+      "interval_seconds": 60,
+      "_comment": "Prüft ob MT5 verbunden ist und funktioniert"
+    }
+  },
+
+  "_examples": {
+    "_comment": "Beispiele für verschiedene Broker-Server",
+    "ic_markets_demo": "ICMarkets-Demo",
+    "ic_markets_live": "ICMarkets-Live",
+    "pepperstone_demo": "Pepperstone-Demo",
+    "pepperstone_live": "Pepperstone-Live",
+    "xm_demo": "XM.COM-Demo",
+    "xm_real": "XM.COM-Real",
+    "ftmo_demo": "FTMO-Demo",
+    "ftmo_server": "FTMO-Server"
+  },
+
+  "_installation_notes": {
+    "step_1": "Passen Sie account, password, server an",
+    "step_2": "Setzen Sie mt5_path auf Ihre MT5-Installation",
+    "step_3": "Führen Sie aus: powershell.exe -ExecutionPolicy Bypass -File MT5_AutoStart.ps1 -ConfigFile mt5_saas_config.json",
+    "step_4_optional": "Installieren Sie als Windows Service für automatischen Start bei System-Boot"
+  }
+}

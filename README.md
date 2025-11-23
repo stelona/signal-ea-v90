@@ -40,6 +40,22 @@
 - **Backward compatibility** with v8.x systems
 - **Future-proof design** for additional features
 
+### **🔐 Auto-Login System** (NEW!)
+- **Automatic account login** from configuration file
+- **Broker/Server detection** with intelligent search
+- **Multi-account support** for Demo, Live, and Prop accounts
+- **Secure credential management** with local file storage
+- **Batch script generation** for Windows automation
+
+### **🚀 SaaS Platform Automation** (NEW!)
+- **ZERO manual interaction** - Fully automated MT5 startup
+- **Windows & Linux support** - Native Windows or Wine on Linux
+- **Service integration** - Windows Service or systemd
+- **Docker support** - Container-based isolation (Linux)
+- **Process monitoring** - Automatic restart on crash
+- **Multi-tenant support** - Multiple MT5 instances per server
+- **Perfect for SaaS platforms** renting MT5 instances
+
 ---
 
 ## 📁 **Repository Structure**
@@ -54,17 +70,36 @@ signal-ea-v90/
 │   │   ├── Core_DataStructures.mqh          # Data structures and enums
 │   │   ├── Core_Logging.mqh                 # Logging functions
 │   │   └── Core_Utilities.mqh               # Utility functions
+│   ├── scripts/
+│   │   └── MT5_Auto_Login.mq5               # Auto-login script
+│   ├── automation/                          # SaaS automation (NEW!)
+│   │   ├── MT5_AutoStart.ps1                # Windows: Automated MT5 startup
+│   │   ├── Install-MT5Service.ps1           # Windows: Service installer
+│   │   ├── MT5_ConfigManager.ps1            # Windows: Configuration manager
+│   │   ├── README.md                        # Windows: Quick start guide
+│   │   └── linux/                           # Linux/Wine automation
+│   │       ├── mt5_autostart.sh             # Linux: Automated MT5 startup
+│   │       ├── install_systemd_service.sh   # Linux: systemd installer
+│   │       ├── mt5_wine_config.sh           # Linux: Config manager
+│   │       ├── Dockerfile                   # Docker container setup
+│   │       ├── docker-compose.yml           # Multi-tenant orchestration
+│   │       └── README.md                    # Linux: Quick start guide
 │   └── legacy/
 │       └── Signal_EA_v8x_Original.mq5       # Original v8.x code (reference)
 ├── docs/
 │   ├── INTEGRATION_GUIDE.md                 # Step-by-step integration guide
 │   ├── API_DOCUMENTATION.md                 # API integration documentation
+│   ├── AUTO_LOGIN_GUIDE.md                  # Auto-login system guide
+│   ├── SAAS_DEPLOYMENT_GUIDE.md             # SaaS platform deployment (NEW!)
 │   ├── TROUBLESHOOTING.md                   # Common issues and solutions
 │   └── CHANGELOG.md                          # Version history and changes
 ├── examples/
 │   ├── minimal_integration/                 # Minimal modular integration example
 │   ├── full_modular/                        # Complete modular structure example
-│   └── patch_files/                         # Patch files for existing installations
+│   ├── patch_files/                         # Patch files for existing installations
+│   ├── mt5_login_config.txt                 # Login configuration example
+│   ├── mt5_saas_config.json                 # SaaS automation config - Windows
+│   └── mt5_saas_config_linux.json           # SaaS automation config - Linux/Wine
 ├── tests/
 │   ├── lotsize_tests.mq5                    # Lotsize calculation tests
 │   └── symbol_detection_tests.mq5           # Symbol detection tests
@@ -115,6 +150,97 @@ For new installations or complete modernization.
    ```
 
 3. **Configure your API endpoints** in the input parameters
+
+### **Option C: Auto-Login Setup** (NEW!)
+For automatic account login from configuration file.
+
+1. **Copy files to MT5:**
+   ```bash
+   # Copy script to MT5 Scripts folder
+   cp src/scripts/MT5_Auto_Login.mq5 [MT5_DATA]/MQL5/Scripts/
+
+   # Copy config template to Files folder
+   cp examples/mt5_login_config.txt [MT5_DATA]/MQL5/Files/
+   ```
+
+2. **Edit configuration file:**
+   ```ini
+   ACCOUNT=12345678
+   PASSWORD=YourPassword
+   SERVER=YourBroker-Demo
+   ```
+
+3. **Run the script in MT5:**
+   - Navigator → Scripts → MT5_Auto_Login
+   - Drag onto any chart
+
+4. **See full guide:** [AUTO_LOGIN_GUIDE.md](docs/AUTO_LOGIN_GUIDE.md)
+
+### **Option D: SaaS Platform Automation** (NEW! - ZERO manual interaction)
+For SaaS platforms renting MT5 instances - fully automated, no customer clicks required.
+
+1. **Copy automation scripts:**
+   ```powershell
+   Copy-Item src/automation/* -Destination "C:\MT5\automation\" -Recurse
+   Copy-Item examples/mt5_saas_config.json -Destination "C:\MT5\config.json"
+   ```
+
+2. **Configure customer credentials:**
+   ```json
+   {
+     "account": 12345678,
+     "password": "CustomerPassword",
+     "server": "ICMarkets-Demo",
+     "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+   }
+   ```
+
+3. **Install as Windows Service:**
+   ```powershell
+   cd C:\MT5\automation
+   .\Install-MT5Service.ps1 -ConfigFile "C:\MT5\config.json"
+   ```
+
+4. **Done!** MT5 starts automatically on system boot - no customer interaction needed.
+
+5. **See full guide:** [SAAS_DEPLOYMENT_GUIDE.md](docs/SAAS_DEPLOYMENT_GUIDE.md)
+
+### **Option E: Linux/Wine SaaS Automation** (NEW! - For Linux Servers)
+For SaaS platforms running on Linux with Wine - fully automated, no customer interaction.
+
+1. **Install dependencies:**
+   ```bash
+   sudo apt-get update
+   sudo apt-get install wine wine64 xvfb jq -y
+   ```
+
+2. **Create customer config from web input:**
+   ```bash
+   cd src/automation/linux
+   ./mt5_wine_config.sh create \
+     --account 12345678 \
+     --password "CustomerPassword" \
+     --server "ICMarkets-Demo"
+   ```
+
+3. **Install as systemd service:**
+   ```bash
+   sudo ./install_systemd_service.sh /opt/mt5/config.json
+   ```
+
+4. **OR run as Docker container:**
+   ```bash
+   docker run -d \
+     -e ACCOUNT=12345678 \
+     -e PASSWORD="CustomerPassword" \
+     -e SERVER="ICMarkets-Demo" \
+     --restart unless-stopped \
+     mt5-saas:latest
+   ```
+
+5. **Done!** MT5 starts automatically - perfect for Linux-based SaaS platforms.
+
+6. **See full guide:** [Linux README](src/automation/linux/README.md)
 
 ---
 
@@ -226,6 +352,8 @@ mql5 tests/symbol_detection_tests.mq5
 
 - **[Integration Guide](docs/INTEGRATION_GUIDE.md)** - Step-by-step installation
 - **[API Documentation](docs/API_DOCUMENTATION.md)** - Complete API reference
+- **[Auto-Login Guide](docs/AUTO_LOGIN_GUIDE.md)** - Automatic account login setup
+- **[SaaS Deployment Guide](docs/SAAS_DEPLOYMENT_GUIDE.md)** - Fully automated SaaS platform setup (NEW!)
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[Changelog](docs/CHANGELOG.md)** - Version history and updates
 

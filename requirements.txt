@@ -1,0 +1,32 @@
+# MT5 Auto-Login & Pre-Flight Check - Python Dependencies
+# ═══════════════════════════════════════════════════════════════════════════
+
+# MetaTrader 5 Python API (required)
+MetaTrader5>=5.0.45
+
+# AWS S3 Upload (optional - für servers.dat Upload)
+boto3>=1.34.0
+
+# HTTP Requests für Webhook (optional - für Suffix-Notification)
+requests>=2.31.0
+
+# Config Parser (included in Python stdlib - listed for completeness)
+# configparser - already included in Python 3.x
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Installation:
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# All dependencies:
+#   pip install -r requirements.txt
+#
+# Minimal (only MT5 API):
+#   pip install MetaTrader5
+#
+# With S3 support:
+#   pip install MetaTrader5 boto3
+#
+# With Webhook support:
+#   pip install MetaTrader5 requests
+#
+# ═══════════════════════════════════════════════════════════════════════════

@@ -198,7 +198,27 @@ def find_broker_server(broker_name: str) -> Optional[str]:
 
     return None
 
-def login_to_mt5(login: int, password: str, server: str) -> bool:
+def check_investor_mode() -> Dict:
+    """Prüft ob Account im Investor-Modus (Read-Only) ist"""
+    account_info = mt5.account_info()
+    if not account_info:
+        return {
+            'is_investor': False,
+            'trade_allowed': False,
+            'trade_expert': False,
+            'error': 'Account info nicht verfügbar'
+        }
+
+    is_investor = not account_info.trade_allowed
+
+    return {
+        'is_investor': is_investor,
+        'trade_allowed': account_info.trade_allowed,
+        'trade_expert': account_info.trade_expert,
+        'trade_mode': 'INVESTOR (Read-Only)' if is_investor else 'TRADING (Full Access)'
+    }
+
+def login_to_mt5(login: int, password: str, server: str, allow_investor: bool = False) -> bool:
     """MT5 Login"""
     print_header("MT5 Login")
     print_info(f"Account: {login}")
@@ -220,6 +240,28 @@ def login_to_mt5(login: int, password: str, server: str) -> bool:
                 print_info(f"Server:  {account_info.server}")
                 print_info(f"Balance: {account_info.balance:.2f} {account_info.currency}")
                 print_info(f"Hebel:   1:{account_info.leverage}")
+
+                # Check investor mode
+                investor_check = check_investor_mode()
+
+                if investor_check['is_investor']:
+                    logging.info("")
+                    print_warning("INVESTOR-MODUS ERKANNT!")
+                    print_info(f"Account-Typ: {investor_check['trade_mode']}")
+                    print_info(f"Trading erlaubt: {investor_check['trade_allowed']}")
+                    print_info(f"Expert Advisors: {investor_check['trade_expert']}")
+                    logging.info("")
+
+                    if not allow_investor:
+                        print_error("Investor-Accounts können keine EAs ausführen!")
+                        print_info("Verwenden Sie einen Trading-Account für EA-Betrieb.")
+                        print_info("Oder: --allow-investor Flag zum Ignorieren")
+                        return False
+                    else:
+                        print_warning("Investor-Account wird ignoriert (--allow-investor Flag)")
+                else:
+                    print_success(f"Account-Typ: {investor_check['trade_mode']}")
+                    print_info(f"Expert Advisors erlaubt: {investor_check['trade_expert']}")
 
             return True
 
@@ -504,6 +546,9 @@ def main():
     parser.add_argument('--output-json', type=str, help='Speichere Ergebnis als JSON')
     parser.add_argument('--verbose', action='store_true', help='Verbose Logging')
 
+    # Account Type
+    parser.add_argument('--allow-investor', action='store_true', help='Erlaube Investor-Accounts (Read-Only)')
+
     args = parser.parse_args()
 
     if args.verbose:
@@ -567,7 +612,7 @@ def main():
             mt5.shutdown()
             return 1
 
-    if not login_to_mt5(config['login'], config['password'], server):
+    if not login_to_mt5(config['login'], config['password'], server, args.allow_investor):
         mt5.shutdown()
         return 1
 
@@ -576,6 +621,10 @@ def main():
     # ═══════════════════════════════════════════════════════════════════════
 
     symbol_data = scan_all_symbols()
+
+    # Add account type info
+    investor_check = check_investor_mode()
+    symbol_data['account_type'] = investor_check
 
     # ═══════════════════════════════════════════════════════════════════════
     # 5. Find & Upload servers.dat

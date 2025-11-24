@@ -1095,22 +1095,7 @@ void ModifyPositionTP(ulong ticket, double new_tp, string reason) {
 //+------------------------------------------------------------------+
 //| SIGNAL PROCESSING FUNCTIONS                                      |
 //+------------------------------------------------------------------+
-void CheckForNewSignals() {
-    if(TimeCurrent() - last_signal_check < check_interval_signal) return;
-    last_signal_check = TimeCurrent();
-    
-    LogVerbose("📡 Prüfe auf neue Signale...");
-    
-    string url = signal_api_url + "?account_id=" + account_id;
-    string response = SendHttpRequest(url);
-    
-    if(response == "") {
-        LogVerbose("Keine Antwort von Signal API (normal wenn keine Signale vorhanden)");
-        return;
-    }
-    
-    ProcessSignal(response);
-}
+
 
 void ProcessSignal(string signal_data) {
     LogImportant("📡 NEUES SIGNAL EMPFANGEN");
@@ -1309,6 +1294,170 @@ double ExtractDoubleFromJSON(string json, string key) {
     string value_str = StringSubstr(json, start_pos, end_pos - start_pos);
     StringReplace(value_str, "\"", "");
     return StringToDouble(value_str);
+}
+
+//+------------------------------------------------------------------+
+//| MULTIPLE SIGNALS PROCESSING FUNCTIONS                            |
+//+------------------------------------------------------------------+
+
+// Helper function to detect if JSON response is an array or single object
+bool IsJSONArray(string json) {
+    string trimmed = json;
+    StringReplace(trimmed, " ", "");
+    StringReplace(trimmed, "\t", "");
+    StringReplace(trimmed, "\n", "");
+    StringReplace(trimmed, "\r", "");
+    return StringGetCharacter(trimmed, 0) == '[';
+}
+
+// Extract signal from new JSON format and convert to old format for compatibility
+string ConvertSignalToOldFormat(string new_signal_json) {
+    string signal_id = ExtractStringFromJSON(new_signal_json, "id");
+    string symbol = ExtractStringFromJSON(new_signal_json, "symbol");
+    string direction = ExtractStringFromJSON(new_signal_json, "direction");
+    string entry_type = ExtractStringFromJSON(new_signal_json, "entry_type");
+    double entry_price = ExtractDoubleFromJSON(new_signal_json, "entry_price");
+    double sl = ExtractDoubleFromJSON(new_signal_json, "sl");
+    double tp1 = ExtractDoubleFromJSON(new_signal_json, "tp1");
+    double risk = ExtractDoubleFromJSON(new_signal_json, "risk");
+    
+    // Convert to old format JSON
+    string old_format = "{";
+    old_format += "\"signal_id\":\"" + signal_id + "\",";
+    old_format += "\"symbol\":\"" + symbol + "\",";
+    old_format += "\"direction\":\"" + direction + "\",";
+    old_format += "\"order_type\":\"" + entry_type + "\",";
+    old_format += "\"entry\":\"" + DoubleToString(entry_price, 5) + "\",";
+    old_format += "\"sl\":\"" + DoubleToString(sl, 5) + "\",";
+    old_format += "\"tp\":\"" + DoubleToString(tp1, 5) + "\",";
+    old_format += "\"risk\":\"" + DoubleToString(risk, 2) + "\"";
+    old_format += "}";
+    
+    return old_format;
+}
+
+// Check if signal was already processed to avoid duplicates
+bool IsSignalAlreadyProcessed(string signal_id) {
+    // Simple duplicate check - in production you might want to store processed IDs in a file or array
+    static string processed_signal_ids[1000];
+    static int processed_count = 0;
+    
+    for(int i = 0; i < processed_count; i++) {
+        if(processed_signal_ids[i] == signal_id) {
+            return true;
+        }
+    }
+    
+    // Add to processed list
+    if(processed_count < 1000) {
+        processed_signal_ids[processed_count] = signal_id;
+        processed_count++;
+    }
+    
+    return false;
+}
+
+// Process multiple signals from JSON array
+void ProcessMultipleSignals(string json_array) {
+    LogImportant("📡 MULTIPLE SIGNALS EMPFANGEN");
+    LogDebug("Signals Array: " + json_array);
+    
+    // Extract total_signals count for logging
+    int total_signals = (int)ExtractDoubleFromJSON(json_array, "total_signals");
+    LogImportant("📊 GESAMT SIGNALE: " + IntegerToString(total_signals));
+    
+    // Find array boundaries
+    int array_start = StringFind(json_array, "[");
+    int array_end = StringFind(json_array, "]", array_start);
+    
+    if(array_start == -1 || array_end == -1) {
+        LogError("❌ Ungültiges JSON-Array Format");
+        return;
+    }
+    
+    // Extract array content
+    string array_content = StringSubstr(json_array, array_start + 1, array_end - array_start - 1);
+    
+    // Process each signal in the array
+    int processed_signals = 0;
+    int brace_count = 0;
+    int signal_start = 0;
+    bool in_string = false;
+    bool escape_next = false;
+    
+    for(int i = 0; i < StringLen(array_content); i++) {
+        int ch = StringGetCharacter(array_content, i);
+        
+        if(escape_next) {
+            escape_next = false;
+            continue;
+        }
+        
+        if(ch == '\\') {
+            escape_next = true;
+            continue;
+        }
+        
+        if(ch == '"') {
+            in_string = !in_string;
+            continue;
+        }
+        
+        if(!in_string) {
+            if(ch == '{') {
+                if(brace_count == 0) {
+                    signal_start = i;
+                }
+                brace_count++;
+            } else if(ch == '}') {
+                brace_count--;
+                if(brace_count == 0) {
+                    // Extract single signal JSON
+                    string single_signal = StringSubstr(array_content, signal_start, i - signal_start + 1);
+                    
+                    // Convert to old format and process
+                    string signal_id = ExtractStringFromJSON(single_signal, "id");
+                    
+                    if(signal_id != "") {
+                        if(!IsSignalAlreadyProcessed(signal_id)) {
+                            LogImportant("🔄 VERARBEITE SIGNAL " + IntegerToString(processed_signals + 1) + "/" + IntegerToString(total_signals) + ": " + signal_id);
+                            
+                            string old_format_signal = ConvertSignalToOldFormat(single_signal);
+                            ProcessSignal(old_format_signal);
+                            processed_signals++;
+                        } else {
+                            LogDebug("⏭️ SIGNAL BEREITS VERARBEITET: " + signal_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    LogImportant("✅ SIGNALE VERARBEITET: " + IntegerToString(processed_signals) + " neue von " + IntegerToString(total_signals) + " gesamt");
+}
+
+// Enhanced CheckForNewSignals that can handle both single signals and arrays
+void CheckForNewSignals() {
+    if(TimeCurrent() - last_signal_check < check_interval_signal) return;
+    last_signal_check = TimeCurrent();
+    
+    LogVerbose("📡 Prüfe auf neue Signale...");
+    
+    string url = signal_api_url + "?account_id=" + account_id;
+    string response = SendHttpRequest(url);
+    
+    if(response == "") {
+        LogVerbose("Keine Antwort von Signal API (normal wenn keine Signale vorhanden)");
+        return;
+    }
+    
+    // Detect if response is array or single object
+    if(IsJSONArray(response)) {
+        ProcessMultipleSignals(response);
+    } else {
+        ProcessSignal(response);
+    }
 }
 
 //+------------------------------------------------------------------+

@@ -19,16 +19,13 @@
 //| - Schnellere Ausführung durch weniger Iterationen              |
 //|                                                                  |
 //| OPTIMIERUNGEN in v11.1:                                         |
-//| - Verbesserter JSON Parser mit CJAVal Bibliothek               |
+//| - Verbesserter JSON Parser (Enhanced String Parsing)           |
 //| - HTTP Retry Logic mit exponentiellem Backoff (3x Versuche)    |
 //| - Input Validation in OnInit() für robustere Konfiguration     |
 #property copyright "Copyright 2025"
 #property link      ""
 #property version   "11.1"
 #property strict
-
-// Include JSON library for improved parsing
-#include <JAson.mqh>
 
 // Input parameters
 input string   InpAPIBaseUrl = "https://n8n.stelona.com/webhook/get-signal";   // API Base URL für Signale
@@ -4627,36 +4624,10 @@ void ProcessSignals()
     ParseAndExecuteSignals(jsonResponse);
 }
 
-//| Get JSON value (v11.1: Enhanced with CJAVal, fallback to string parsing) |
+//| Get JSON value (v11.1: Enhanced String Parsing)                 |
 string GetJsonValue(string json, string key)
 {
-    // v11.1: Try using CJAVal library for robust parsing
-    CJAVal jsonParser;
-
-    if(jsonParser.Deserialize(json))
-    {
-        // Successfully parsed with CJAVal
-        if(jsonParser[key].m_type == jtUNDEF)
-        {
-            // Key not found - try fallback
-        }
-        else
-        {
-            // Return value based on type
-            if(jsonParser[key].m_type == jtSTR)
-                return jsonParser[key].ToStr();
-            else if(jsonParser[key].m_type == jtINT)
-                return IntegerToString(jsonParser[key].ToInt());
-            else if(jsonParser[key].m_type == jtDBL)
-                return DoubleToString(jsonParser[key].ToDbl(), 8);
-            else if(jsonParser[key].m_type == jtBOOL)
-                return jsonParser[key].ToBool() ? "true" : "false";
-            else
-                return jsonParser[key].ToStr();
-        }
-    }
-
-    // Fallback to original string-based parser
+    // v11.1: Robust string-based JSON parsing (no external dependencies)
     string searchKey = "\"" + key + "\":";
     int keyPos = StringFind(json, searchKey);
 
@@ -4671,9 +4642,12 @@ string GetJsonValue(string json, string key)
 
     int valueStart = keyPos + StringLen(searchKey);
 
+    // Skip whitespace
     while(valueStart < StringLen(json) &&
           (StringGetCharacter(json, valueStart) == ' ' ||
-           StringGetCharacter(json, valueStart) == '\t'))
+           StringGetCharacter(json, valueStart) == '\t' ||
+           StringGetCharacter(json, valueStart) == '\n' ||
+           StringGetCharacter(json, valueStart) == '\r'))
         valueStart++;
 
     bool isString = (StringGetCharacter(json, valueStart) == '"');
@@ -4688,7 +4662,7 @@ string GetJsonValue(string json, string key)
 
         if(isString && charCode == '"')
             break;
-        else if(!isString && (charCode == ',' || charCode == '}'))
+        else if(!isString && (charCode == ',' || charCode == '}' || charCode == ']'))
             break;
 
         valueEnd++;
@@ -4696,7 +4670,11 @@ string GetJsonValue(string json, string key)
 
     string value = StringSubstr(json, valueStart, valueEnd - valueStart);
 
-    if(value == "null")
+    // v11.1: Enhanced null and whitespace handling
+    StringTrimLeft(value);
+    StringTrimRight(value);
+
+    if(value == "null" || value == "NULL")
         return "";
 
     return value;

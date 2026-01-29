@@ -1,0 +1,733 @@
+// This work is licensed under a Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/
+// Original "Range Detector" logic by LuxAlgo. "Squeeze Momentum" logic by LazyBear. Strategy Logic by User & Assistant.
+// v12.5 - Full Webhook Integration (JSON Alerts)
+
+//@version=6
+strategy("Fibo-Cross Strategy [v12.5 - Webhook]", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, currency=currency.USD, max_boxes_count=500, max_lines_count=500, pyramiding=0)
+
+// ==========================================
+// 1. INPUT PARAMETER
+// ==========================================
+
+// --- Backtest Zeitraum & Session ---
+grp_time = "Zeit & Session"
+startYear = input.int(2023, "Start Jahr", group=grp_time)
+startMonth = input.int(1, "Start Monat", group=grp_time)
+startDay = input.int(1, "Start Tag", group=grp_time)
+startTime = timestamp(startYear, startMonth, startDay, 00, 00)
+
+tradeTimeZone = input.string("Europe/Berlin", "Zeitzone", options=["Europe/Berlin", "America/New_York", "Europe/London", "Asia/Tokyo", "UTC"], group=grp_time)
+
+useSession = input.bool(true, "Session Filter aktiv?", group=grp_time)
+tradeSession = input.session("0900-1900", "Handelszeit", group=grp_time)
+
+inDateRange = time >= startTime
+inSession = useSession ? not na(time(timeframe.period, tradeSession, tradeTimeZone)) : true
+
+// --- EMA Fächer ---
+grp_fan = "EMA Fächer"
+ema1_len = input.int(6, "EMA 1", group=grp_fan)
+ema2_len = input.int(12, "EMA 2", group=grp_fan)
+ema3_len = input.int(18, "EMA 3", group=grp_fan)
+ema4_len = input.int(24, "EMA 4", group=grp_fan)
+ema5_len = input.int(30, "EMA 5", group=grp_fan)
+ema6_len = input.int(36, "EMA 6", group=grp_fan)
+ema7_len = input.int(45, "EMA 7", group=grp_fan)
+ema8_len = input.int(60, "EMA 8", group=grp_fan)
+ema9_len = input.int(75, "EMA 9", group=grp_fan)
+ema10_len = input.int(200, "EMA 10", group=grp_fan)
+
+// --- Signal & Logik ---
+grp_sig = "Signal Core"
+fastLen = input.int(5, "Signal Fast EMA", group=grp_sig)
+slowLen = input.int(25, "Signal Slow EMA", group=grp_sig)
+enableReEntry = input.bool(true, "Re-Entries (Trend)?", group=grp_sig)
+
+useWilliamsEntry = input.bool(false, "Williams %R Entry?", group=grp_sig)
+williamsLen = input.int(5, "Williams %R Länge", group=grp_sig)
+williamsLow = input.int(-90, "W%R Long Trigger (<=)", maxval=0, minval=-100, group=grp_sig)
+williamsHigh = input.int(-10, "W%R Short Trigger (>=)", maxval=0, minval=-100, group=grp_sig)
+
+aggressivity = input.int(5, "Cooldown (1-10)", minval=1, maxval=10, group=grp_sig)
+
+// --- Range Detector (LuxAlgo) ---
+grp_range = "Range Detector (LuxAlgo)"
+useRangeDet = input.bool(true, "Range Detector aktiv?", group=grp_range)
+rd_len = input.int(50, "Lookback Length", minval=5, maxval=100, group=grp_range, tooltip="Anzahl der Bars für Range-Berechnung")
+rd_mult = input.float(1.0, "Range Multiplier", minval=0.1, maxval=5.0, step=0.1, group=grp_range, tooltip="Multiplikator für Range-Breite")
+rd_atrLen = input.int(500, "ATR Length (Volatility)", minval=50, maxval=1000, group=grp_range, tooltip="ATR Periode für Volatilitäts-Normalisierung")
+showRangeVis = input.bool(false, "Zeige Range Boxen (Chart)", group=grp_range)
+rd_upCss = input.color(#089981, "Bullish Breakout", group=grp_range)
+rd_dnCss = input.color(#f23645, "Bearish Breakout", group=grp_range)
+rd_unbrokenCss = input.color(#2157f3, "Unbroken Range", group=grp_range)
+
+// --- Erweiterte Filter ---
+grp_filt = "Filter Arsenal (Optional)"
+useSqueezeFilter = input.bool(false, "Squeeze Momentum (LazyBear)?", group=grp_filt)
+useMacdFilter = input.bool(false, "MACD Filter?", group=grp_filt)
+useSupertrendFilter = input.bool(false, "Supertrend Filter?", group=grp_filt)
+stFactor = input.float(3.0, "ST Factor", step=0.1, group=grp_filt)
+stPd = input.int(10, "ST Length", group=grp_filt)
+
+useMtfFilter = input.bool(true, "H1 Trend Filter", group=grp_filt)
+useH4Filter  = input.bool(true, "H4 Trend Filter", group=grp_filt)
+useDailyFilter = input.bool(false, "Daily Trend Filter", group=grp_filt)
+
+useAdx = input.bool(false, "ADX Filter (Stärke)", group=grp_filt)
+useDiFilter = input.bool(false, "DI+ / DI- Cross Check (Richtung)", group=grp_filt)
+adxLen = input.int(10, "ADX Len", group=grp_filt)
+adxThresh = input.int(20, "ADX Min", group=grp_filt)
+
+useSlope = input.bool(false, "Slope (Steigung) Filter", group=grp_filt)
+slopeThresh = input.float(1.0, "Min Slope Strength", step=0.1, group=grp_filt)
+useVolFilter = input.bool(true, "Volume Filter (> Avg)", group=grp_filt)
+useRsiFilter = input.bool(true, "RSI Trend Check (>50/<50)", group=grp_filt)
+useWickFilter = input.bool(false, "Wick Filter (Docht Schutz)", group=grp_filt)
+wickRatio = input.float(1.5, "Max Wick Ratio", group=grp_filt)
+useDxyFilter = input.bool(false, "DXY (Dollar) Filter", group=grp_filt)
+useH1Color = input.bool(true, "H1 Candle Color Check", group=grp_filt)
+useVwap = input.bool(true, "VWAP Filter", group=grp_filt)
+useAtrMin = input.bool(false, "Min Volatility (ATR) Filter", group=grp_filt)
+atrMinVal = input.float(0.5, "Min ATR ($)", group=grp_filt)
+
+// --- Risikomanagement ---
+grp_risk = "Risikomanagement (Basis)"
+atrRiskLen = input.int(28, "ATR Length", group=grp_risk)
+slMult = input.float(3.0, "SL Multiplier", group=grp_risk)
+useTrailing = input.bool(true, "Trailing Stop", group=grp_risk)
+trailActMult = input.float(1.0, "Trail Start (ATR)", group=grp_risk)
+trailStepMult = input.float(2.0, "Trail Dist (ATR)", group=grp_risk)
+
+// --- Exit Modus ---
+grp_risk2 = "Risikomanagement 2.0 (Exit Modus)"
+useTrendBreakExit = input.bool(true, "Trend Break Exit aktiv?", group=grp_risk2)
+useSplitExits = input.bool(true, "Nutze Split Exits (Multi TP)?", group=grp_risk2)
+
+tpRiskReward = input.float(2.0, "Single TP (CRV)", group=grp_risk2)
+useBeSingleMode = input.bool(true, "SL auf Break Even bei 1:1 (Single Mode)?", group=grp_risk2)
+
+useBeAfterTp1 = input.bool(true, "SL auf Break Even nach TP1 (Multi Mode)?", group=grp_risk2)
+useTp1 = input.bool(true, "TP 1 Aktiv?", inline="tp1", group=grp_risk2)
+tp1Ratio = input.float(0.5, "CRV", inline="tp1", group=grp_risk2)
+tp1Qty = input.float(20, "%", inline="tp1", group=grp_risk2)
+useTp2 = input.bool(true, "TP 2 Aktiv?", inline="tp2", group=grp_risk2)
+tp2Ratio = input.float(1.0, "CRV", inline="tp2", group=grp_risk2)
+tp2Qty = input.float(20, "%", inline="tp2", group=grp_risk2)
+useTp3 = input.bool(true, "TP 3 Aktiv?", inline="tp3", group=grp_risk2)
+tp3Ratio = input.float(1.5, "CRV", inline="tp3", group=grp_risk2)
+tp3Qty = input.float(20, "%", inline="tp3", group=grp_risk2)
+useTp4 = input.bool(true, "TP 4 Aktiv?", inline="tp4", group=grp_risk2)
+tp4Ratio = input.float(2.0, "CRV", inline="tp4", group=grp_risk2)
+tp4Qty = input.float(20, "%", inline="tp4", group=grp_risk2)
+
+trendRunMode = input.bool(false, "Trend-Run (Kein TP)", group=grp_risk2)
+
+// --- Visuals ---
+grp_vis = "Visuals"
+showBlocked = input.bool(true, "Zeige Blocked Signals", group=grp_vis)
+showDash = input.bool(true, "Zeige Dashboards", group=grp_vis)
+showFullConfig = input.bool(false, "Zeige FULL Config Export", group=grp_vis)
+dashPosStr = input.string("Bottom Center", "Main Dashboard Position", options=["Bottom Center", "Top Center"], group=grp_vis)
+resPosStr = input.string("Bottom Right", "Results Table Position", options=["Bottom Right", "Top Right", "Bottom Left", "Top Left"], group=grp_vis)
+
+// ==========================================
+// 2. BERECHNUNGEN
+// ==========================================
+
+e1 = ta.ema(close, ema1_len)
+e10 = ta.ema(close, ema10_len)
+e8 = ta.ema(close, ema8_len)
+e2 = ta.ema(close, ema2_len)
+e3 = ta.ema(close, ema3_len)
+e4 = ta.ema(close, ema4_len)
+e5 = ta.ema(close, ema5_len)
+e6 = ta.ema(close, ema6_len)
+e7 = ta.ema(close, ema7_len)
+e9 = ta.ema(close, ema9_len)
+
+fanTop = math.max(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10)
+fanBottom = math.min(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10)
+isFanBullish = close > e8
+isFanBearish = close < e8
+fanColor = close > fanTop ? color.new(color.green, 50) : close < fanBottom ? color.new(color.red, 50) : color.new(color.gray, 80)
+plot(e1, color=fanColor, title="EMA 1")
+plot(e10, color=fanColor, title="EMA 10", linewidth=2)
+
+sigFast = ta.ema(close, fastLen)
+sigSlow = ta.ema(close, slowLen)
+wprVal = ta.wpr(williamsLen)
+
+// MTF
+getTrendState(simple int t_emaFast, simple int t_emaSlow) =>
+    eF = ta.ema(close, t_emaFast)
+    eS = ta.ema(close, t_emaSlow)
+    trend = close > eF and close > eS ? 1 : close < eF and close < eS ? -1 : 0
+    trend
+[h1_tr] = request.security(syminfo.tickerid, "60", [getTrendState(10, 90)], lookahead=barmerge.lookahead_off)
+[h4_tr] = request.security(syminfo.tickerid, "240", [getTrendState(10, 90)], lookahead=barmerge.lookahead_off)
+[d_tr]  = request.security(syminfo.tickerid, "D", [getTrendState(10, 90)], lookahead=barmerge.lookahead_off)
+
+mtfLongOk = (not useMtfFilter or h1_tr == 1) and (not useH4Filter or h4_tr == 1) and (not useDailyFilter or d_tr == 1)
+mtfShortOk = (not useMtfFilter or h1_tr == -1) and (not useH4Filter or h4_tr == -1) and (not useDailyFilter or d_tr == -1)
+
+[dp, dm, adxVal] = ta.dmi(adxLen, adxLen)
+adxOk = useAdx ? adxVal > adxThresh : true
+diOkL = useDiFilter ? (dp > dm) : true
+diOkS = useDiFilter ? (dm > dp) : true
+
+// ==========================================
+// RANGE DETECTOR (LuxAlgo Logic)
+// ==========================================
+var float rTop = na
+var float rBot = na
+var int rd_os = 0
+var box rd_bx = na
+
+rd_n = bar_index
+rd_atr = ta.atr(rd_atrLen) * rd_mult
+rd_ma = ta.sma(close, rd_len)
+
+rd_count = 0
+for i = 0 to rd_len - 1
+    rd_count += math.abs(close[i] - rd_ma) > rd_atr ? 1 : 0
+
+if rd_count == 0 and rd_count[1] != rd_count
+    rTop := rd_ma + rd_atr
+    rBot := rd_ma - rd_atr
+    if showRangeVis
+        rd_bx := box.new(rd_n[rd_len], rTop, rd_n, rBot, na, bgcolor = color.new(rd_unbrokenCss, 80))
+    rd_os := 0
+else if rd_count == 0
+    if showRangeVis and not na(rd_bx)
+        rd_bx.set_right(rd_n)
+    rd_os := 0
+
+if not na(rTop)
+    if close > rTop
+        rd_os := 1
+        if showRangeVis and not na(rd_bx)
+            rd_bx.set_bgcolor(color.new(rd_upCss, 80))
+    else if close < rBot
+        rd_os := -1
+        if showRangeVis and not na(rd_bx)
+            rd_bx.set_bgcolor(color.new(rd_dnCss, 80))
+
+rangeOk = useRangeDet ? (rd_os != 0) : true
+
+// ==========================================
+// ADVANCED FILTERS
+// ==========================================
+
+sqzLen = 20
+sqzMult = 2.0
+sqzKCMult = 1.5
+sqzBasis = ta.sma(close, sqzLen)
+sqzDev = sqzMult * ta.stdev(close, sqzLen)
+sqzUpperBB = sqzBasis + sqzDev
+sqzLowerBB = sqzBasis - sqzDev
+sqzMa = ta.sma(close, sqzLen)
+sqzRange = ta.tr(true)
+sqzRangeMa = ta.sma(sqzRange, sqzLen)
+sqzUpperKC = sqzMa + (sqzKCMult * sqzRangeMa)
+sqzLowerKC = sqzMa - (sqzKCMult * sqzRangeMa)
+sqzOn = (sqzLowerBB > sqzLowerKC) and (sqzUpperBB < sqzUpperKC)
+sqzOff = not sqzOn
+sqzAvg = math.avg(math.avg(ta.highest(high, sqzLen), ta.lowest(low, sqzLen)), ta.sma(close, sqzLen))
+sqzVal = ta.linreg(close - sqzAvg, sqzLen, 0)
+sqzOkL = useSqueezeFilter ? (sqzOff and sqzVal > 0) : true
+sqzOkS = useSqueezeFilter ? (sqzOff and sqzVal < 0) : true
+
+[macdLine, signalLine, histLine] = ta.macd(close, 12, 26, 9)
+macdOkL = useMacdFilter ? (histLine > 0) : true
+macdOkS = useMacdFilter ? (histLine < 0) : true
+
+[stVal, stDir] = ta.supertrend(stFactor, stPd)
+stOkL = useSupertrendFilter ? (stDir == -1) : true
+stOkS = useSupertrendFilter ? (stDir == 1) : true
+
+slopeVal = (sigSlow - sigSlow[1]) / sigSlow[1] * 10000
+slopeOkL = useSlope ? (slopeVal > slopeThresh) : true
+slopeOkS = useSlope ? (slopeVal < -slopeThresh) : true
+
+volMa = ta.sma(volume, 20)
+volOk = useVolFilter ? (volume > volMa) : true
+
+rsiVal = ta.rsi(close, 14)
+rsiOkL = useRsiFilter ? (rsiVal > 50) : true
+rsiOkS = useRsiFilter ? (rsiVal < 50) : true
+
+bodySize = math.abs(close - open)
+uWick = high - math.max(close, open)
+lWick = math.min(close, open) - low
+wickBadL = (uWick > bodySize * wickRatio)
+wickBadS = (lWick > bodySize * wickRatio)
+wickOkL = useWickFilter ? not wickBadL : true
+wickOkS = useWickFilter ? not wickBadS : true
+
+dxyClose = request.security("TVC:DXY", timeframe.period, close)
+dxyEma = ta.ema(dxyClose, 50)
+dxyOkL = useDxyFilter ? (dxyClose < dxyEma) : true
+dxyOkS = useDxyFilter ? (dxyClose > dxyEma) : true
+
+[h1O, h1C] = request.security(syminfo.tickerid, "60", [open, close], lookahead=barmerge.lookahead_on)
+h1ColorOkL = useH1Color ? (h1C > h1O) : true
+h1ColorOkS = useH1Color ? (h1C < h1O) : true
+
+vwapVal = ta.vwap(close)
+vwapOkL = useVwap ? (close > vwapVal) : true
+vwapOkS = useVwap ? (close < vwapVal) : true
+
+currAtr = ta.atr(14)
+atrMinOk = useAtrMin ? (currAtr > atrMinVal) : true
+
+// ==========================================
+// 3. TRIGGER LOGIC
+// ==========================================
+cooldownBars = aggressivity * 2
+lastEntryIndex = strategy.opentrades > 0 ? strategy.opentrades.entry_bar_index(strategy.opentrades - 1) : -99999
+barsSinceEntry = bar_index - lastEntryIndex
+isCooldownOver = barsSinceEntry > cooldownBars
+
+allFiltersL = isFanBullish and adxOk and diOkL and rangeOk and mtfLongOk and volOk and rsiOkL and wickOkL and dxyOkL and h1ColorOkL and vwapOkL and atrMinOk and slopeOkL and sqzOkL and macdOkL and stOkL
+allFiltersS = isFanBearish and adxOk and diOkS and rangeOk and mtfShortOk and volOk and rsiOkS and wickOkS and dxyOkS and h1ColorOkS and vwapOkS and atrMinOk and slopeOkS and sqzOkS and macdOkS and stOkS
+
+crossLong = ta.crossover(sigFast, sigSlow)
+crossShort = ta.crossunder(sigFast, sigSlow)
+isTrendL = sigFast > sigSlow
+isTrendS = sigFast < sigSlow
+isFlat = strategy.position_size == 0
+
+trigStandardL = (crossLong or (enableReEntry and isTrendL and isFlat))
+trigStandardS = (crossShort or (enableReEntry and isTrendS and isFlat))
+
+wprLong = wprVal <= williamsLow
+wprShort = wprVal >= williamsHigh
+trigWillL = useWilliamsEntry and isTrendL and wprLong
+trigWillS = useWilliamsEntry and isTrendS and wprShort
+
+trigL = trigStandardL or trigWillL
+trigS = trigStandardS or trigWillS
+
+longCondition = allFiltersL and isCooldownOver and trigL and inDateRange and inSession
+shortCondition = allFiltersS and isCooldownOver and trigS and inDateRange and inSession
+
+blockedL = (crossLong or trigWillL) and (not allFiltersL or not isCooldownOver or not inSession) and inDateRange
+blockedS = (crossShort or trigWillS) and (not allFiltersS or not isCooldownOver or not inSession) and inDateRange
+plotshape(showBlocked and blockedL, title="Blocked L", style=shape.xcross, location=location.belowbar, color=color.red, size=size.tiny)
+plotshape(showBlocked and blockedS, title="Blocked S", style=shape.xcross, location=location.abovebar, color=color.red, size=size.tiny)
+
+// ==========================================
+// 4. EXECUTION & MANAGEMENT (WEBHOOK JSON)
+// ==========================================
+exitLong = ta.crossunder(sigFast, sigSlow) or close < e10
+exitShort = ta.crossover(sigFast, sigSlow) or close > e10
+
+atrVal = ta.atr(atrRiskLen)
+
+// === STATE VARIABLES ===
+var float storedSlPrice = na
+var float storedEntryPrice = na
+var float storedSlDist = na
+var bool isLongTrade = true
+var bool beTriggered = false
+
+var float storedTp1 = na
+var float storedTp2 = na
+var float storedTp3 = na
+var float storedTp4 = na
+var float storedSingleTp = na
+
+// TP Hit Tracker
+var bool tp1Hit = false
+var bool tp2Hit = false
+var bool tp3Hit = false
+var bool tp4Hit = false
+
+// === STATISTIK COUNTER ===
+var int c_tp1 = 0
+var int c_tp2 = 0
+var int c_tp3 = 0
+var int c_tp4 = 0
+var int c_sl = 0
+var int c_be = 0
+var int c_tb_win = 0
+var int c_tb_loss = 0
+var int c_trail_win = 0
+
+// === HELPER FUNCTION FÜR JSON ===
+f_json(_action, _sl, _tp) =>
+    '{"ticker": "' + syminfo.ticker + '", "action": "' + _action + '", "price": ' + str.tostring(close) + ', "sl": ' + str.tostring(_sl) + ', "tp": ' + str.tostring(_tp) + '}'
+
+// === ENTRY LOGIC ===
+if longCondition
+    slDist = atrVal * slMult
+    storedSlDist := slDist
+    storedEntryPrice := close
+    storedSlPrice := close - slDist
+    isLongTrade := true
+    beTriggered := false
+
+    tp1Hit := false
+    tp2Hit := false
+    tp3Hit := false
+    tp4Hit := false
+
+    storedTp1 := useSplitExits and useTp1 ? (close + (slDist * tp1Ratio)) : na
+    storedTp2 := useSplitExits and useTp2 ? (close + (slDist * tp2Ratio)) : na
+    storedTp3 := useSplitExits and useTp3 ? (close + (slDist * tp3Ratio)) : na
+    storedTp4 := useSplitExits and useTp4 ? (close + (slDist * tp4Ratio)) : na
+    storedSingleTp := trendRunMode ? na : (close + (slDist * tpRiskReward))
+
+    // JSON ALERT MESSAGE CONSTRUCTION
+    string jsonMsg = f_json("buy", storedSlPrice, useSplitExits ? storedTp1 : storedSingleTp)
+
+    strategy.entry("Long", strategy.long, comment="L", alert_message=jsonMsg)
+
+if shortCondition
+    slDist = atrVal * slMult
+    storedSlDist := slDist
+    storedEntryPrice := close
+    storedSlPrice := close + slDist
+    isLongTrade := false
+    beTriggered := false
+
+    tp1Hit := false
+    tp2Hit := false
+    tp3Hit := false
+    tp4Hit := false
+
+    storedTp1 := useSplitExits and useTp1 ? (close - (slDist * tp1Ratio)) : na
+    storedTp2 := useSplitExits and useTp2 ? (close - (slDist * tp2Ratio)) : na
+    storedTp3 := useSplitExits and useTp3 ? (close - (slDist * tp3Ratio)) : na
+    storedTp4 := useSplitExits and useTp4 ? (close - (slDist * tp4Ratio)) : na
+    storedSingleTp := trendRunMode ? na : (close - (slDist * tpRiskReward))
+
+    // JSON ALERT MESSAGE CONSTRUCTION
+    string jsonMsg = f_json("sell", storedSlPrice, useSplitExits ? storedTp1 : storedSingleTp)
+
+    strategy.entry("Short", strategy.short, comment="S", alert_message=jsonMsg)
+
+// === MANAGEMENT LOOP - LONG ===
+if strategy.position_size > 0
+    // Multi-TP Hit Detection (Alert Only)
+    if useSplitExits
+        if useTp1 and not na(storedTp1) and not tp1Hit and high >= storedTp1
+            tp1Hit := true
+            c_tp1 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP1_Hit"}', alert.freq_once_per_bar_close)
+        if useTp2 and not na(storedTp2) and not tp2Hit and high >= storedTp2
+            tp2Hit := true
+            c_tp2 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP2_Hit"}', alert.freq_once_per_bar_close)
+        if useTp3 and not na(storedTp3) and not tp3Hit and high >= storedTp3
+            tp3Hit := true
+            c_tp3 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP3_Hit"}', alert.freq_once_per_bar_close)
+        if useTp4 and not na(storedTp4) and not tp4Hit and high >= storedTp4
+            tp4Hit := true
+            c_tp4 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP4_Hit"}', alert.freq_once_per_bar_close)
+
+    // Break Even Logic
+    beTriggerPrice = useSplitExits ? storedTp1 : (storedEntryPrice + storedSlDist)
+    beActive = useSplitExits ? useBeAfterTp1 : useBeSingleMode
+    if beActive and not beTriggered and high >= beTriggerPrice
+        storedSlPrice := math.max(storedSlPrice, storedEntryPrice)
+        beTriggered := true
+        alert('{"ticker": "' + syminfo.ticker + '", "action": "move_to_be", "new_sl": ' + str.tostring(storedEntryPrice) + '}', alert.freq_once_per_bar_close)
+
+    // Trailing Stop
+    if useTrailing
+        actPrice = storedEntryPrice + (atrVal * trailActMult)
+        if high >= actPrice
+            newSL = high - (atrVal * trailStepMult)
+            storedSlPrice := math.max(storedSlPrice, newSL)
+
+    // Exit Orders
+    string exitJson = '{"ticker": "' + syminfo.ticker + '", "action": "close_long"}'
+
+    if useSplitExits
+        float highestTp = na
+        if useTp4 and not na(storedTp4)
+            highestTp := storedTp4
+        else if useTp3 and not na(storedTp3)
+            highestTp := storedTp3
+        else if useTp2 and not na(storedTp2)
+            highestTp := storedTp2
+        else if useTp1 and not na(storedTp1)
+            highestTp := storedTp1
+
+        strategy.exit("Exit_L", "Long", stop=storedSlPrice, limit=highestTp, comment_profit="TP Hit", comment_loss="SL/Trail", alert_message=exitJson)
+    else
+        strategy.exit("Exit_L", "Long", stop=storedSlPrice, limit=storedSingleTp, comment_profit="TP Hit", comment_loss="SL/Trail", alert_message=exitJson)
+
+// === MANAGEMENT LOOP - SHORT ===
+if strategy.position_size < 0
+    if useSplitExits
+        if useTp1 and not na(storedTp1) and not tp1Hit and low <= storedTp1
+            tp1Hit := true
+            c_tp1 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP1_Hit"}', alert.freq_once_per_bar_close)
+        if useTp2 and not na(storedTp2) and not tp2Hit and low <= storedTp2
+            tp2Hit := true
+            c_tp2 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP2_Hit"}', alert.freq_once_per_bar_close)
+        if useTp3 and not na(storedTp3) and not tp3Hit and low <= storedTp3
+            tp3Hit := true
+            c_tp3 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP3_Hit"}', alert.freq_once_per_bar_close)
+        if useTp4 and not na(storedTp4) and not tp4Hit and low <= storedTp4
+            tp4Hit := true
+            c_tp4 += 1
+            alert('{"ticker": "' + syminfo.ticker + '", "action": "update_sl", "reason": "TP4_Hit"}', alert.freq_once_per_bar_close)
+
+    beTriggerPrice = useSplitExits ? storedTp1 : (storedEntryPrice - storedSlDist)
+    beActive = useSplitExits ? useBeAfterTp1 : useBeSingleMode
+    if beActive and not beTriggered and low <= beTriggerPrice
+        storedSlPrice := math.min(storedSlPrice, storedEntryPrice)
+        beTriggered := true
+        alert('{"ticker": "' + syminfo.ticker + '", "action": "move_to_be", "new_sl": ' + str.tostring(storedEntryPrice) + '}', alert.freq_once_per_bar_close)
+
+    if useTrailing
+        actPrice = storedEntryPrice - (atrVal * trailActMult)
+        if low <= actPrice
+            newSL = low + (atrVal * trailStepMult)
+            storedSlPrice := math.min(storedSlPrice, newSL)
+
+    string exitJsonS = '{"ticker": "' + syminfo.ticker + '", "action": "close_short"}'
+
+    if useSplitExits
+        float lowestTp = na
+        if useTp4 and not na(storedTp4)
+            lowestTp := storedTp4
+        else if useTp3 and not na(storedTp3)
+            lowestTp := storedTp3
+        else if useTp2 and not na(storedTp2)
+            lowestTp := storedTp2
+        else if useTp1 and not na(storedTp1)
+            lowestTp := storedTp1
+
+        strategy.exit("Exit_S", "Short", stop=storedSlPrice, limit=lowestTp, comment_profit="TP Hit", comment_loss="SL/Trail", alert_message=exitJsonS)
+    else
+        strategy.exit("Exit_S", "Short", stop=storedSlPrice, limit=storedSingleTp, comment_profit="TP Hit", comment_loss="SL/Trail", alert_message=exitJsonS)
+
+// Trend Break Exit
+if useTrendBreakExit
+    if strategy.position_size > 0 and exitLong
+        strategy.close("Long", comment="Trend Break", alert_message='{"ticker": "' + syminfo.ticker + '", "action": "close_long", "reason": "trend_break"}')
+    if strategy.position_size < 0 and exitShort
+        strategy.close("Short", comment="Trend Break", alert_message='{"ticker": "' + syminfo.ticker + '", "action": "close_short", "reason": "trend_break"}')
+
+// === RESULT ANALYZER (FIXED) ===
+if strategy.closedtrades > strategy.closedtrades[1]
+    lastIdx = strategy.closedtrades - 1
+    exComm = strategy.closedtrades.exit_comment(lastIdx)
+    pnl = strategy.closedtrades.profit(lastIdx)
+
+    if exComm == "TP Hit"
+        if not useSplitExits
+            c_tp1 += 1
+    else if exComm == "BE Hit"
+        c_be += 1
+    else if exComm == "SL Hit"
+        c_sl += 1
+    else if exComm == "Trail Stop"
+        c_trail_win += 1
+    else if exComm == "Trend Break"
+        if pnl > 0
+            c_tb_win += 1
+        else
+            c_tb_loss += 1
+    else
+        // Fallback
+        if pnl > 0
+            c_trail_win += 1
+        else
+            c_sl += 1
+
+// ===== VISUALS =====
+posActive = strategy.position_size != 0
+plot(storedSlPrice, color=posActive ? color.new(color.red, 30) : na, style=plot.style_linebr, trackprice=true, title="SL")
+
+singleBeTrigger = posActive and not useSplitExits and useBeSingleMode ? (strategy.position_size > 0 ? storedEntryPrice + storedSlDist : storedEntryPrice - storedSlDist) : na
+plot(singleBeTrigger, color=posActive ? color.new(color.blue, 20) : na, style=plot.style_circles, linewidth=2, title="BE Trigger (1:1)")
+
+plot(useSplitExits ? na : storedSingleTp, color=posActive ? color.new(color.green, 30) : na, style=plot.style_linebr, trackprice=true, title="Single TP")
+plot(useSplitExits and useTp1 ? storedTp1 : na, color=posActive ? color.new(color.green, 50) : na, style=plot.style_circles, linewidth=1, title="TP1")
+plot(useSplitExits and useTp2 ? storedTp2 : na, color=posActive ? color.new(color.green, 50) : na, style=plot.style_circles, linewidth=1, title="TP2")
+plot(useSplitExits and useTp3 ? storedTp3 : na, color=posActive ? color.new(color.green, 50) : na, style=plot.style_circles, linewidth=1, title="TP3")
+plot(useSplitExits and useTp4 ? storedTp4 : na, color=posActive ? color.new(color.green, 50) : na, style=plot.style_circles, linewidth=1, title="TP4")
+
+// Range Detector Status
+plotshape(useRangeDet and rd_os == 1 and rd_os[1] != 1, title="Range Breakout Up", style=shape.triangleup, location=location.belowbar, color=rd_upCss, size=size.tiny)
+plotshape(useRangeDet and rd_os == -1 and rd_os[1] != -1, title="Range Breakout Down", style=shape.triangledown, location=location.abovebar, color=rd_dnCss, size=size.tiny)
+
+// ==========================================
+// 5. DASHBOARDS
+// ==========================================
+
+f_fillCell(_tbl, _col, _title, _val, _bg) =>
+    table.cell(_tbl, _col, 0, _title + "\n" + _val, bgcolor=_bg, text_color=color.white, text_size=size.small, text_halign=text.align_center)
+    _col + 1
+
+f_cfgRow(_tbl, _r, _txt, _val) =>
+    table.cell(_tbl, 0, _r, _txt, text_color=color.white, text_halign=text.align_left)
+    table.cell(_tbl, 1, _r, _val, text_color=color.yellow, text_halign=text.align_left)
+
+dashPos = dashPosStr == "Top Right" ? position.top_right : dashPosStr == "Bottom Right" ? position.bottom_right : dashPosStr == "Bottom Left" ? position.bottom_left : dashPosStr == "Top Left" ? position.top_left : dashPosStr == "Top Center" ? position.top_center : position.bottom_center
+resPos = resPosStr == "Top Right" ? position.top_right : resPosStr == "Bottom Right" ? position.bottom_right : resPosStr == "Bottom Left" ? position.bottom_left : position.top_left
+
+if showDash
+    // 1. MAIN DASH
+    var table statusTbl = table.new(dashPos, 30, 2, border_width=1, frame_color=color.new(color.gray, 50), border_color=color.new(color.gray, 50))
+    int c = 0
+    c := f_fillCell(statusTbl, c, "SYSTEM", "v12.5", color.new(color.gray, 20))
+
+    cfgStr = "SL:" + str.tostring(slMult) + " | TP:" + (useSplitExits ? "Multi" : str.tostring(tpRiskReward)) + " | RE:" + (enableReEntry ? "ON" : "OFF") + " | FLT:"
+    if useWickFilter
+        cfgStr := cfgStr + "Wick "
+    if useSqueezeFilter
+        cfgStr := cfgStr + "Sqz "
+    if useSupertrendFilter
+        cfgStr := cfgStr + "ST "
+    if useDiFilter
+        cfgStr := cfgStr + "DI "
+
+    if useWilliamsEntry
+        c_will = (isTrendL and wprLong) or (isTrendS and wprShort) ? color.blue : color.gray
+        c := f_fillCell(statusTbl, c, "W%R", str.tostring(wprVal, "#.0"), c_will)
+    if useSqueezeFilter
+        c_sqz = (sqzOkL or sqzOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "Squeeze", sqzOn ? "ON" : "OFF", c_sqz)
+    if useSlope
+        c_slp = (isFanBullish and slopeOkL) or (isFanBearish and slopeOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "Slope", str.tostring(slopeVal, "#.1"), c_slp)
+    if useMtfFilter
+        c_h1 = h1_tr == 1 ? color.green : h1_tr == -1 ? color.red : color.gray
+        c := f_fillCell(statusTbl, c, "Filter", "H1", c_h1)
+    if useH4Filter
+        c_h4 = h4_tr == 1 ? color.green : h4_tr == -1 ? color.red : color.gray
+        c := f_fillCell(statusTbl, c, "Filter", "H4", c_h4)
+    if useDailyFilter
+        c_d = d_tr == 1 ? color.green : d_tr == -1 ? color.red : color.gray
+        c := f_fillCell(statusTbl, c, "Filter", "Daily", c_d)
+    if useRangeDet
+        c_lux = rangeOk ? color.green : color.red
+        rangeStatus = rd_os == 1 ? "BULL BO" : rd_os == -1 ? "BEAR BO" : "RANGE"
+        c := f_fillCell(statusTbl, c, "Range", rangeStatus, c_lux)
+    if useAdx
+        c_adx = adxOk ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "ADX", str.tostring(adxVal, "#.0"), c_adx)
+    if useAtrMin
+        c_atr = atrMinOk ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "Vol", atrMinOk ? "HIGH" : "LOW", c_atr)
+    if useVolFilter
+        c_vol = volOk ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "Vol", volOk ? "OK" : "LOW", c_vol)
+    if useRsiFilter
+        c_rsi = (isFanBullish and rsiOkL) or (isFanBearish and rsiOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "RSI", str.tostring(rsiVal, "#.0"), c_rsi)
+    if useWickFilter
+        c := f_fillCell(statusTbl, c, "Wick", "ACTIVE", color.blue)
+    if useDxyFilter
+        c_dxy = (isFanBullish and dxyOkL) or (isFanBearish and dxyOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "DXY", c_dxy == color.green ? "OK" : "BLOCK", c_dxy)
+    if useH1Color
+        c_h1c = (isFanBullish and h1ColorOkL) or (isFanBearish and h1ColorOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "H1 Col", c_h1c == color.green ? "MATCH" : "DIFF", c_h1c)
+    if useVwap
+        c_vw = (isFanBullish and vwapOkL) or (isFanBearish and vwapOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "VWAP", c_vw == color.green ? "OK" : "BAD", c_vw)
+    if useSupertrendFilter
+        c_st = (isFanBullish and stOkL) or (isFanBearish and stOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "ST", c_st == color.green ? "OK" : "NO", c_st)
+    if useDiFilter
+        c_di = (isFanBullish and diOkL) or (isFanBearish and diOkS) ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "DI+/-", c_di == color.green ? "OK" : "CROSS", c_di)
+
+    c_fan = isFanBullish ? color.green : isFanBearish ? color.red : color.gray
+    c := f_fillCell(statusTbl, c, "Fan", isFanBullish ? "BULL" : isFanBearish ? "BEAR" : "MIX", c_fan)
+    c_cd = isCooldownOver ? color.green : color.orange
+    c := f_fillCell(statusTbl, c, "Cool", isCooldownOver ? "RDY" : "WAIT", c_cd)
+    if useSession
+        c_sess = inSession ? color.green : color.red
+        c := f_fillCell(statusTbl, c, "Sess", inSession ? "OPEN" : "CLSD", c_sess)
+
+    table.cell(statusTbl, 0, 1, "CFG:", text_color=color.gray, text_size=size.small)
+    table.cell(statusTbl, 1, 1, cfgStr, text_color=color.gray, text_size=size.small, text_halign=text.align_left)
+    table.merge_cells(statusTbl, 1, 1, 10, 1)
+
+    // 2. FULL CONFIG VIEW
+    if showFullConfig
+        var table cfgTbl = table.new(position.middle_center, 2, 30, border_width=1, frame_color=color.black, border_color=color.gray, bgcolor=color.new(color.black, 10))
+
+        table.cell(cfgTbl, 0, 0, "FULL CONFIGURATION EXPORT", bgcolor=color.blue, text_color=color.white)
+        table.merge_cells(cfgTbl, 0, 0, 1, 0)
+
+        f_cfgRow(cfgTbl, 1, "Strategy Version", "v12.5")
+        f_cfgRow(cfgTbl, 2, "EMA Fan (1-10)", str.tostring(ema1_len) + "..." + str.tostring(ema10_len))
+        f_cfgRow(cfgTbl, 3, "Signal Fast/Slow", str.tostring(fastLen) + " / " + str.tostring(slowLen))
+        f_cfgRow(cfgTbl, 4, "Re-Entries", enableReEntry ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 5, "Williams %R Entry", useWilliamsEntry ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 6, "Aggressivity", str.tostring(aggressivity))
+        f_cfgRow(cfgTbl, 7, "Range Det", useRangeDet ? ("ON | Len:" + str.tostring(rd_len) + " Mult:" + str.tostring(rd_mult)) : "OFF")
+        f_cfgRow(cfgTbl, 8, "FILTERS: Squeeze", useSqueezeFilter ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 9, "FILTERS: MACD", useMacdFilter ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 10, "FILTERS: Supertrend", useSupertrendFilter ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 11, "FILTERS: ADX", useAdx ? ("ON > " + str.tostring(adxThresh)) : "OFF")
+        f_cfgRow(cfgTbl, 12, "FILTERS: DI Cross", useDiFilter ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 13, "FILTERS: Wick", useWickFilter ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 14, "FILTERS: DXY", useDxyFilter ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 15, "FILTERS: H1 Color", useH1Color ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 16, "FILTERS: VWAP", useVwap ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 17, "Risk: ATR Len", str.tostring(atrRiskLen))
+        f_cfgRow(cfgTbl, 18, "Risk: SL Multiplier", str.tostring(slMult))
+        f_cfgRow(cfgTbl, 19, "Risk: Trailing Stop", useTrailing ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 20, "Exit: Trend Break", useTrendBreakExit ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 21, "Exit: Mode", useSplitExits ? "MULTI TP" : "SINGLE TP")
+        f_cfgRow(cfgTbl, 22, "Exit: Single TP CRV", useSplitExits ? "-" : str.tostring(tpRiskReward))
+        f_cfgRow(cfgTbl, 23, "Exit: Break Even", useBeSingleMode ? "ON" : "OFF")
+        f_cfgRow(cfgTbl, 24, "Timezone", tradeTimeZone)
+
+    // 3. RESULTS TABLE
+    var table resTbl = table.new(resPos, 2, 12, border_width=1, frame_color=color.gray, border_color=color.gray)
+    table.cell(resTbl, 0, 0, "RESULTS", bgcolor=color.new(color.gray, 20), text_color=color.white)
+    table.cell(resTbl, 1, 0, "COUNT", bgcolor=color.new(color.gray, 20), text_color=color.white)
+
+    table.cell(resTbl, 0, 1, useSplitExits ? "TP 1 Hits" : "TP Hits", bgcolor=color.black, text_color=color.green, text_halign=text.align_left)
+    table.cell(resTbl, 1, 1, str.tostring(c_tp1), bgcolor=color.black, text_color=color.white)
+
+    table.cell(resTbl, 0, 2, "TP 2 Hits", bgcolor=color.black, text_color=useSplitExits ? color.green : color.gray, text_halign=text.align_left)
+    table.cell(resTbl, 1, 2, str.tostring(c_tp2), bgcolor=color.black, text_color=useSplitExits ? color.white : color.gray)
+
+    table.cell(resTbl, 0, 3, "TP 3 Hits", bgcolor=color.black, text_color=useSplitExits ? color.green : color.gray, text_halign=text.align_left)
+    table.cell(resTbl, 1, 3, str.tostring(c_tp3), bgcolor=color.black, text_color=useSplitExits ? color.white : color.gray)
+
+    table.cell(resTbl, 0, 4, "TP 4 Hits", bgcolor=color.black, text_color=useSplitExits ? color.green : color.gray, text_halign=text.align_left)
+    table.cell(resTbl, 1, 4, str.tostring(c_tp4), bgcolor=color.black, text_color=useSplitExits ? color.white : color.gray)
+
+    table.cell(resTbl, 0, 5, "SL (Loss)", bgcolor=color.black, text_color=color.red, text_halign=text.align_left)
+    table.cell(resTbl, 1, 5, str.tostring(c_sl), bgcolor=color.black, text_color=color.white)
+
+    table.cell(resTbl, 0, 6, "Break Even", bgcolor=color.black, text_color=color.blue, text_halign=text.align_left)
+    table.cell(resTbl, 1, 6, str.tostring(c_be), bgcolor=color.black, text_color=color.white)
+
+    table.cell(resTbl, 0, 7, "Trail Stop (Win)", bgcolor=color.black, text_color=useTrailing ? color.teal : color.gray, text_halign=text.align_left)
+    table.cell(resTbl, 1, 7, str.tostring(c_trail_win), bgcolor=color.black, text_color=useTrailing ? color.white : color.gray)
+
+    table.cell(resTbl, 0, 8, "Trend Break (Win)", bgcolor=color.black, text_color=useTrendBreakExit ? color.green : color.gray, text_halign=text.align_left)
+    table.cell(resTbl, 1, 8, str.tostring(c_tb_win), bgcolor=color.black, text_color=useTrendBreakExit ? color.white : color.gray)
+
+    table.cell(resTbl, 0, 9, "Trend Break (Loss)", bgcolor=color.black, text_color=useTrendBreakExit ? color.red : color.gray, text_halign=text.align_left)
+    table.cell(resTbl, 1, 9, str.tostring(c_tb_loss), bgcolor=color.black, text_color=useTrendBreakExit ? color.white : color.gray)
+
+    // Zusammenfassung
+    totalWins = c_tp1 + c_tp2 + c_tp3 + c_tp4 + c_tb_win + c_trail_win
+    totalLosses = c_sl + c_tb_loss
+    winRate = (totalWins + totalLosses) > 0 ? (totalWins / (totalWins + totalLosses)) * 100 : 0
+
+    table.cell(resTbl, 0, 10, "─────────", bgcolor=color.black, text_color=color.gray, text_halign=text.align_left)
+    table.cell(resTbl, 1, 10, "─────", bgcolor=color.black, text_color=color.gray)
+
+    table.cell(resTbl, 0, 11, "Win Rate", bgcolor=color.new(color.blue, 70), text_color=color.white, text_halign=text.align_left)
+    table.cell(resTbl, 1, 11, str.tostring(winRate, "#.1") + "%", bgcolor=color.new(color.blue, 70), text_color=color.white)
